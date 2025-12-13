@@ -283,7 +283,7 @@
         </div>
         <div>
           <button id="btnCargarPerfil" type="button" onclick="cargarPerfil()">
-            <span class="icon">🔄</span> Cargar perfil
+            <span class="icon">🔄</span> Sincronizar perfil
           </button>
         </div>
         <div>
@@ -686,7 +686,7 @@
   async function cargarPerfil() {
     if (state.isLoading) return;
     setLoading(true);
-    setStatus('Cargando perfil...', '');
+    setStatus('Sincronizando perfil...', '');
     $('msgPerfil') && ( $('msgPerfil').textContent = '' );
 
     const localProfile = loadProfileFromStorage();
@@ -743,14 +743,14 @@
       fillProfile(swimmer, { onlyEmpty: false });
       saveProfile({ ...swimmer });
       persistConfigFromInputs();
-      setStatus('Perfil cargado y guardado localmente.', 'ok');
+      setStatus('Perfil sincronizado y guardado localmente.', 'ok');
       $('msgPerfil') && ( $('msgPerfil').textContent = '' );
     } catch (err) {
       const friendly = formatErr(err);
       if (localProfile && Object.keys(localProfile).length) {
         setStatus(`No se pudo sincronizar (usando datos locales). Motivo: ${friendly}`, '');
       } else {
-        setStatus(`Error al cargar perfil: ${friendly}`, 'error');
+        setStatus(`Error al sincronizar perfil: ${friendly}`, 'error');
       }
     } finally {
       setLoading(false);
@@ -1126,7 +1126,7 @@
           persistConfigFromInputs();
           if (id === 'swimmer_id') {
             const notice = $('swimmerNotice');
-            if (notice) { notice.textContent = 'Swimmer ID cambió, puedes cargar perfil para sincronizar.'; notice.className = 'msg'; }
+            if (notice) { notice.textContent = 'Swimmer ID cambió, puedes sincronizar el perfil.'; notice.className = 'msg'; }
           }
         });
       }
@@ -1135,10 +1135,26 @@
     if (fechaInput) fechaInput.addEventListener('change', actualizarEdadYCategoria);
   }
 
+  async function sincronizarMarcasAlArrancar() {
+    const cfg = loadConfig();
+    const hasBasics = (cfg.webapp_url || $('webapp_url')?.value?.trim())
+      && (cfg.coach_id || $('coach_id')?.value?.trim())
+      && (cfg.swimmer_id || $('swimmer_id')?.value?.trim());
+
+    if (!hasBasics) return;
+
+    try {
+      await cargarMisMarcas();
+    } catch (err) {
+      console.warn('Auto-sync de marcas falló:', err);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     initFromStorage();
     attachListeners();
     syncWebAppUrl_();
+    sincronizarMarcasAlArrancar();
   });
 </script>
 
