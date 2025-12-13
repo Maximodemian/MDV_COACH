@@ -769,8 +769,19 @@
       setLoading(true);
       setStatus('Cargando marcas...', '');
       state.currentRequest = url;
-      const res = await fetchWithTimeout(url, {}, 12000);
-      const data = await res.json();
+      const fetchMarks = async (retries = 1) => {
+        try {
+          const res = await fetchWithTimeout(url, {}, 25000);
+          return await res.json();
+        } catch (err) {
+          if (retries > 0 && formatErr(err) === 'timeout') {
+            return fetchMarks(retries - 1);
+          }
+          throw err;
+        }
+      };
+
+      const data = await fetchMarks(1);
       if (data.status !== 'ok') {
         throw new Error(data.message || 'No se pudieron cargar las marcas.');
       }
@@ -794,8 +805,9 @@
       if (msg) { msg.textContent = ''; msg.className = 'msg'; }
       setStatus('Listo.', 'ok');
     } catch (err) {
-      if (msg) { msg.textContent = 'Error al cargar marcas: ' + err; msg.className = 'msg error'; }
-      setStatus('Error: ' + err, 'error');
+      const friendly = formatErr(err);
+      if (msg) { msg.textContent = 'Error al cargar marcas: ' + friendly; msg.className = 'msg error'; }
+      setStatus('Error: ' + friendly, 'error');
     } finally {
       setLoading(false);
       state.currentRequest = null;
