@@ -488,9 +488,12 @@
 
   let currentEventos = [];
   let currentSwimmerMeta = null;
+  let currentReportAbortController = null;
 
   const state = {
-    isLoading: false,
+    isLoadingSwimmers: false,
+    isLoadingReport: false,
+    isTestingConnection: false,
     autoRefreshTimer: null,
     selectedSwimmerId: null,
     debug: false
@@ -521,12 +524,27 @@
     el.className = cls;
   }
 
-  function setLoading(flag) {
-    state.isLoading = flag;
+  function updateButtonsDisabled() {
+    const flag = state.isLoadingSwimmers || state.isLoadingReport || state.isTestingConnection;
     ['btnCargarSwimmers','btnProbar','btnLimpiarCfg'].forEach(id => {
       const el = $(id);
       if (el) el.disabled = flag;
     });
+  }
+
+  function setLoadingSwimmers(flag) {
+    state.isLoadingSwimmers = flag;
+    updateButtonsDisabled();
+  }
+
+  function setLoadingReport(flag) {
+    state.isLoadingReport = flag;
+    updateButtonsDisabled();
+  }
+
+  function setTestingConnection(flag) {
+    state.isTestingConnection = flag;
+    updateButtonsDisabled();
   }
 
   function getCfg() {
@@ -577,7 +595,7 @@
     const cfg = getCfg();
     if (!cfg.autoRefresh) return;
     state.autoRefreshTimer = setInterval(() => {
-      if (state.isLoading) return;
+      if (state.isLoadingSwimmers) return;
       const c = getCfg();
       if (!c.webAppUrl || !c.coachId) return;
       cargarNadadores({ silent: true, keepSelection: true });
@@ -593,8 +611,12 @@
     el.textContent = `Última actualización: ${hh}:${mm}:${ss}`;
   }
 
-  async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  async function fetchWithTimeout(url, options = {}, timeoutMs = 12000, externalSignal) {
     const controller = new AbortController();
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort(externalSignal.reason);
+      else externalSignal.addEventListener('abort', () => controller.abort(externalSignal.reason), { once: true });
+    }
     const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
     try {
       const res = await fetch(url, { ...options, signal: controller.signal });
@@ -648,53 +670,19 @@
     throw new Error(data.error || data.message || `HTTP ${res.status}`);
   }
 
-  async function fetchSwimmerReportCompat(baseUrl, coachId, swimmerId, sheetId) {
+  async function fetchSwimmerMarksWithContext(baseUrl, coachId, swimmerId, sheetId, signal) {
     const params = { coach_id: coachId, swimmer_id: swimmerId };
     if (sheetId) params.spreadsheet_id = sheetId;
 
-    const attempts = [
-      { action: 'get_swimmer_report', kind: 'report' },
-      { action: 'get_swimmer_marks_with_context', kind: 'marks' }
-    ];
+    const fullUrl = buildUrl(baseUrl, 'get_swimmer_marks_with_context', params);
+    const res = await fetchWithTimeout(fullUrl, {}, 12000, signal);
+    const text = await res.text();
+    const data = parseJsonSafe(text) || {};
+    const meta = { url: fullUrl, status: res.status, body: text.slice(0,200), action: 'get_swimmer_marks_with_context' };
 
-    let lastError = null;
+    if (data.status === 'ok') return { data, meta };
 
-    for (const attempt of attempts) {
-      const fullUrl = buildUrl(baseUrl, attempt.action, params);
-      try {
-        const res = await fetchWithTimeout(fullUrl, {}, 12000);
-        const text = await res.text();
-        const data = parseJsonSafe(text) || {};
-        const meta = { url: fullUrl, status: res.status, body: text.slice(0,200), action: attempt.action };
-
-        if (data.status === 'ok') {
-          return { kind: attempt.kind, data, meta };
-        }
-
-        if (attempt.action === 'get_swimmer_report' && isUnknownAction(data)) {
-          logStatus('Compatibilidad: get_swimmer_report no disponible, probando get_swimmer_marks_with_context','muted');
-          lastError = new Error(data.error || data.message || `HTTP ${res.status}`);
-          continue;
-        }
-
-        if (attempt.action === 'get_swimmer_report') {
-          lastError = new Error(data.error || data.message || `HTTP ${res.status}`);
-          logStatus('get_swimmer_report falló, se intenta con marks','muted', state.debug ? lastError.message : undefined);
-          continue;
-        }
-
-        throw new Error(data.error || data.message || `HTTP ${res.status}`);
-      } catch (err) {
-        lastError = err;
-        if (attempt.action === 'get_swimmer_report') {
-          logStatus('Error get_swimmer_report, se prueba con marks','muted', state.debug ? err.message : undefined);
-          continue;
-        }
-        throw err;
-      }
-    }
-
-    throw lastError || new Error('No se pudo obtener informe del nadador');
+    throw new Error(data.error || data.message || `HTTP ${res.status}`);
   }
 
   function ensureCriticalElements() {
@@ -711,7 +699,7 @@
 
   async function cargarNadadores(opts = {}) {
     if (!ensureCriticalElements()) return;
-    if (state.isLoading) { logStatus('Carga ignorada: otra operación en curso','muted'); return; }
+    if (state.isLoadingSwimmers) { logStatus('Carga ignorada: otra operación en curso','muted'); return; }
     const url = $('web_app_url')?.value?.trim();
     const coachId = $('coach_id')?.value?.trim();
     const sheetId = $('spreadsheet_id')?.value?.trim();
@@ -738,7 +726,7 @@
       return;
     }
 
-    setLoading(true);
+    setLoadingSwimmers(true);
     setMsg('msgConfig','Cargando nadadores...','msg');
     logStatus('Solicitando listado de nadadores...','muted');
 
@@ -790,7 +778,7 @@
       setMsg('msgConfig','Error al cargar nadadores: ' + err, 'msg error');
       logStatus('Error cargando nadadores: ' + err,'error');
     } finally {
-      setLoading(false);
+      setLoadingSwimmers(false);
     }
   }
 
@@ -810,7 +798,7 @@
   }
 
   async function seleccionarNadador(li, swimmer) {
-    if (state.isLoading) { logStatus('Selección ignorada: carga en curso','muted'); return; }
+    if (state.isLoadingSwimmers) { logStatus('Selección ignorada: carga de nadadores en curso','muted'); return; }
     limpiarSeleccionLista();
     li.classList.add('active');
     state.selectedSwimmerId = swimmer.swimmer_id;
@@ -820,7 +808,12 @@
   }
 
   async function cargarInforme(swimmerId) {
-    if (state.isLoading) { logStatus('Informe ignorado: otra carga en curso','muted'); return; }
+    if (state.isLoadingSwimmers) { logStatus('Informe ignorado: carga de nadadores en curso','muted'); return; }
+    if (currentReportAbortController) {
+      currentReportAbortController.abort('replaced');
+    }
+    const controller = new AbortController();
+    currentReportAbortController = controller;
     const url = $('web_app_url')?.value?.trim();
     const coachId = $('coach_id')?.value?.trim();
     const sheetId = $('spreadsheet_id')?.value?.trim();
@@ -839,25 +832,16 @@
     }
 
     setMsg('msgReport','Generando informe...','msg');
-    setLoading(true);
+    setLoadingReport(true);
     logStatus('Solicitando informe del nadador...','muted');
 
     try {
-      const { kind, data, meta } = await fetchSwimmerReportCompat(url, coachId, swimmerId, sheetId);
-      let eventos = [];
-
-      if (kind === 'report') {
-        const report = data.report || {};
-        eventos = (report.eventos || []).map(normalizarEvento);
-        currentSwimmerMeta = report.swimmer || data.swimmer || null;
-        logStatus('Informe recibido de get_swimmer_report','muted', state.debug ? `${meta?.status || ''} ${meta?.url || ''}` : undefined);
-      } else {
-        const swimmer = data.swimmer || null;
-        const marks = data.marks || [];
-        eventos = buildProjectionReport(swimmer, marks);
-        currentSwimmerMeta = swimmer;
-        logStatus('Informe armado localmente desde marks','muted', state.debug ? `${meta?.status || ''} ${meta?.url || ''}` : undefined);
-      }
+      const { data, meta } = await fetchSwimmerMarksWithContext(url, coachId, swimmerId, sheetId, controller.signal);
+      const swimmer = data.swimmer || null;
+      const marks = data.marks || [];
+      const eventos = buildProjectionReport(swimmer, marks);
+      currentSwimmerMeta = swimmer;
+      logStatus('Informe armado localmente desde marks','muted', state.debug ? `${meta?.status || ''} ${meta?.url || ''}` : undefined);
 
       currentEventos = eventos;
 
@@ -875,10 +859,15 @@
       logStatus('Informe generado.','ok', state.debug ? `${meta?.status || ''} :: ${meta?.url || ''} :: ${(meta?.body || '').slice(0,200)}` : undefined);
 
     } catch (err) {
+      if (controller.signal.aborted) {
+        logStatus('Informe cancelado: se inició una nueva solicitud','muted');
+        return;
+      }
       setMsg('msgReport','Error al generar informe: ' + err,'msg error');
       logStatus('Error generando informe: ' + err,'error');
     } finally {
-      setLoading(false);
+      if (currentReportAbortController === controller) currentReportAbortController = null;
+      setLoadingReport(false);
     }
   }
 
@@ -1063,28 +1052,28 @@
       const curso = (mark.curso || '').toUpperCase();
       if (!estilo || !distancia_m || !curso) return;
 
-      const comparacion = (mark.comparacion_curso || mark.comparacion || mark.comparacion_curso_target || mark.comparacion_curso || 'LCM');
+      const comparacionCurso = (mark.comparacion_curso || mark.comparacionCurso || mark.comparacion || mark.comparacion_curso_target || 'LCM');
       const baseTime = calcularBaseTiempo({
         ...mark,
         mejor_tiempo_s: mark.tiempo_s ?? mark.mejor_tiempo_s,
         equiv_lcm_s: mark.equiv_lcm_s ?? mark.equiv_lcm,
-        comparacion_curso: comparacion
+        comparacion_curso: comparacionCurso
       });
 
       const key = `${estilo}-${distancia_m}-${curso}`;
       const current = grouped.get(key);
       if (!current || (baseTime != null && (current.baseTime == null || baseTime < current.baseTime))) {
-        grouped.set(key, { mark, baseTime });
+        grouped.set(key, { mark, baseTime, comparacionCurso });
       }
     });
 
     const eventos = [];
-    grouped.forEach(({ mark }) => {
+    grouped.forEach(({ mark, comparacionCurso }) => {
       const ev = {
         estilo: mark.estilo,
         distancia_m: Number(mark.distancia_m),
         curso: (mark.curso || '').toUpperCase(),
-        comparacion_curso: comparacion.toUpperCase(),
+        comparacion_curso: (comparacionCurso || 'LCM').toUpperCase(),
         prueba: mark.prueba || `${mark.estilo} ${mark.distancia_m}m`,
         mejor_tiempo_s: mark.tiempo_s ?? mark.mejor_tiempo_s ?? null,
         mejor_tiempo_str: mark.tiempo_str || mark.tiempo_raw || '',
@@ -1213,13 +1202,13 @@
   }
 
   async function probarConexion() {
-    if (state.isLoading) { logStatus('Prueba ignorada: carga en curso','muted'); return; }
+    if (state.isLoadingSwimmers || state.isLoadingReport || state.isTestingConnection) { logStatus('Prueba ignorada: carga en curso','muted'); return; }
     const url = $('web_app_url')?.value?.trim();
     if (!url) {
       setMsg('msgConfig','Falta URL Web App.','msg error');
       return;
     }
-    setLoading(true);
+    setTestingConnection(true);
     logStatus('Probando conexión...','muted');
     try {
       const fullUrl = buildUrl(url, 'status');
@@ -1232,7 +1221,7 @@
       logStatus('Fallo prueba de conexión: ' + err,'error');
       setMsg('msgConfig','Error en prueba: ' + err,'msg error');
     } finally {
-      setLoading(false);
+      setTestingConnection(false);
     }
   }
 
