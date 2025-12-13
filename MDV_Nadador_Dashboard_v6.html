@@ -652,7 +652,9 @@
 
   async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
+    const method = (options?.method || '').toUpperCase();
+    const effectiveTimeout = method === 'POST' ? Math.max(timeoutMs, 25000) : timeoutMs;
+    const timer = setTimeout(() => controller.abort('timeout'), effectiveTimeout);
     const opts = { ...options, signal: controller.signal };
     try {
       const res = await fetch(url, opts);
@@ -663,6 +665,8 @@
       throw err;
     }
   }
+
+  const delay = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
 
   function buildGetUrl(action, opts = {}) {
     const url = syncWebAppUrl_();
@@ -817,6 +821,73 @@
   function parseTiempo(valor) {
     const num = Number(valor);
     return isNaN(num) ? null : num;
+  }
+
+  function parseTiempoEnSegundos(valor) {
+    if (!valor) return null;
+    const cleaned = String(valor).trim().replace(',', '.');
+    if (!cleaned) return null;
+    if (/^\d+(\.\d+)?$/.test(cleaned)) {
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : num;
+    }
+
+    const parts = cleaned.split(':');
+    if (parts.length >= 2) {
+      const segundos = parseFloat(parts.pop());
+      if (isNaN(segundos)) return null;
+      let total = segundos;
+      let multiplier = 60;
+      while (parts.length) {
+        const unidad = parseInt(parts.pop(), 10);
+        if (isNaN(unidad)) return null;
+        total += unidad * multiplier;
+        multiplier *= 60;
+      }
+      return total;
+    }
+
+    return null;
+  }
+
+  function buildMarkKey(m) {
+    if (!m) return '';
+    const fecha = m.fecha || m.fecha_mark || '';
+    const estilo = m.estilo || '';
+    const distancia = m.distancia_m || m.distancia || '';
+    const curso = (m.curso || '').toUpperCase();
+    const tiempo = m.tiempo_raw || m.tiempo || m.tiempo_str || '';
+    const lugarEvento = m.lugar_evento || m.lugar || '';
+    return [fecha, estilo, distancia, curso, tiempo, lugarEvento].join('|');
+  }
+
+  async function fetchMarksSnapshot(coach_id, swimmer_id) {
+    const url = buildGetUrl('get_swimmer_marks_with_context', { requireSwimmerId: true });
+    const res = await fetchWithTimeout(url, {}, 25000);
+    const data = await res.json();
+    return { data, marks: data?.marks || [] };
+  }
+
+  async function verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot, nuevaMarca }) {
+    const prevMarks = prevSnapshot?.marks || [];
+    const prevCount = prevMarks.length;
+    const prevKeys = prevMarks.map(buildMarkKey);
+
+    await delay(500 + Math.floor(Math.random() * 200));
+    const afterSnapshot = await fetchMarksSnapshot(coach_id, swimmer_id);
+    const newMarks = afterSnapshot.marks || [];
+    const newCount = newMarks.length;
+    const newKeys = newMarks.map(buildMarkKey);
+    const targetKey = buildMarkKey(nuevaMarca);
+    const hasCountIncrease = newCount >= prevCount + 1;
+    const hasMatch = newKeys.includes(targetKey) && (!prevKeys.includes(targetKey) || hasCountIncrease);
+
+    return {
+      ok: hasCountIncrease || hasMatch,
+      prevCount,
+      newCount,
+      snapshot: afterSnapshot
+    };
   }
 
   function normalizarMarca(mark) {
@@ -978,49 +1049,143 @@
     const distancia = Number($('distancia_m')?.value);
     const carril = $('carril')?.value?.trim();
     const tiempo_raw = $('tiempo_raw')?.value?.trim();
+    const tiempo_s = parseTiempoEnSegundos(tiempo_raw);
 
     if (!coach_id || !swimmer_id || !fecha || !estilo || !distancia || !tiempo_raw) {
       if (msg) { msg.textContent = 'Faltan datos obligatorios (coach, nadador, fecha, estilo, distancia, tiempo).'; msg.className = 'msg error'; }
       return;
     }
 
+    const client_mark_id = `MK_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    const mark = {
+      fecha,
+      lugar,
+      lugar_evento: lugar,
+      curso,
+      tipo_toma,
+      estilo,
+      distancia_m: distancia,
+      carril,
+      tiempo_raw,
+      tiempo_str: tiempo_raw,
+      tiempo_s,
+      client_mark_id
+    };
+
     const payload = {
       action: 'add_mark',
       coach_id,
       swimmer_id,
-      mark: {
-        fecha,
-        lugar,
-        lugar_evento: lugar,
-        curso,
-        tipo_toma,
-        estilo,
-        distancia_m: distancia,
-        carril,
-        tiempo_raw,
-        tiempo_str: tiempo_raw
-      }
+      mark,
+      fecha,
+      lugar_evento: lugar,
+      lugar,
+      evento: lugar,
+      curso,
+      tipo_toma,
+      tipo: tipo_toma,
+      estilo,
+      distancia_m: distancia,
+      carril,
+      tiempo_raw,
+      tiempo: tiempo_raw,
+      tiempo_str: tiempo_raw,
+      tiempo_s,
+      client_mark_id
+    };
+
+    const debugLogs = [];
+    const logDebug = (line) => {
+      debugLogs.push(line);
+      setStatus(debugLogs.join('\n'), '');
     };
 
     try {
       setLoading(true);
       setStatus('Guardando marca...', '');
+      const snapshotPrevio = await fetchMarksSnapshot(coach_id, swimmer_id);
+      logDebug('DEBUG guardarMarca: POST add_mark enviado');
       const res = await fetchWithTimeout(url, {
         method: 'POST',
         body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store'
       });
       const data = await res.json();
-      if (data.status === 'ok') {
-        if (msg) { msg.textContent = 'Marca guardada correctamente.'; msg.className = 'msg ok'; }
-        if ($('tiempo_raw')) $('tiempo_raw').value = '';
-        await cargarMisMarcas();
-      } else {
+      logDebug('Respuesta servidor: ' + JSON.stringify(data));
+      if (data.status !== 'ok') {
         throw new Error(data.message || 'No se pudo guardar.');
       }
+
+      const verif1 = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: snapshotPrevio, nuevaMarca: mark });
+      logDebug(`Verificación: prevCount=${verif1.prevCount} newCount=${verif1.newCount}`);
+
+      if (verif1.ok) {
+        logDebug('Resultado: persistido');
+        if (msg) { msg.textContent = 'Marca guardada correctamente.'; msg.className = 'msg ok'; }
+        if ($('tiempo_raw')) $('tiempo_raw').value = '';
+        setStatus('Marca guardada y verificada.', 'ok');
+        await cargarMisMarcas();
+        return;
+      }
+
+      logDebug('Resultado: NO persistido');
+      if (msg) { msg.textContent = 'El servidor respondió OK pero no se verificó persistencia en la planilla (posible payload no interpretado).'; msg.className = 'msg error'; }
+      logDebug('Payload enviado: ' + JSON.stringify(payload));
+
+      const fallbackPayload = {
+        action: 'add_mark',
+        coach_id,
+        swimmer_id,
+        fecha,
+        lugar_evento: lugar,
+        lugar,
+        evento: lugar,
+        curso,
+        tipo_toma,
+        tipo: tipo_toma,
+        estilo,
+        distancia_m: distancia,
+        carril,
+        tiempo_raw,
+        tiempo: tiempo_raw,
+        tiempo_str: tiempo_raw,
+        tiempo_s,
+        client_mark_id
+      };
+
+      logDebug('Reintentando con payload plano...');
+      const resRetry = await fetchWithTimeout(url, {
+        method: 'POST',
+        body: JSON.stringify(fallbackPayload),
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store'
+      });
+      const dataRetry = await resRetry.json();
+      logDebug('Respuesta servidor (retry): ' + JSON.stringify(dataRetry));
+      if (dataRetry.status !== 'ok') {
+        throw new Error(dataRetry.message || 'Reintento fallido.');
+      }
+
+      const verif2 = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: verif1.snapshot || snapshotPrevio, nuevaMarca: mark });
+      logDebug(`Verificación retry: prevCount=${verif2.prevCount} newCount=${verif2.newCount}`);
+
+      if (!verif2.ok) {
+        logDebug('Resultado: NO persistido tras retry');
+        if (msg) { msg.textContent = 'El servidor respondió OK pero no se verificó persistencia en la planilla (posible payload no interpretado).'; msg.className = 'msg error'; }
+        return;
+      }
+
+      logDebug('Resultado: persistido tras retry');
+      if (msg) { msg.textContent = 'Marca guardada correctamente.'; msg.className = 'msg ok'; }
+      if ($('tiempo_raw')) $('tiempo_raw').value = '';
+      setStatus('Marca guardada y verificada tras reintento.', 'ok');
+      await cargarMisMarcas();
     } catch (err) {
       if (msg) { msg.textContent = 'Error: ' + err; msg.className = 'msg error'; }
-      setStatus('Error al guardar marca: ' + err, 'error');
+      const extra = debugLogs.length ? `\n${debugLogs.join('\n')}` : '';
+      setStatus('Error al guardar marca: ' + err + extra, 'error');
     } finally {
       setLoading(false);
     }
