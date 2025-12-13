@@ -988,7 +988,18 @@
       action: 'add_mark',
       coach_id,
       swimmer_id,
-      mark: { fecha, lugar_evento: lugar, curso, tipo_toma, estilo, distancia_m: distancia, carril, tiempo_raw }
+      mark: {
+        fecha,
+        lugar,
+        lugar_evento: lugar,
+        curso,
+        tipo_toma,
+        estilo,
+        distancia_m: distancia,
+        carril,
+        tiempo_raw,
+        tiempo_str: tiempo_raw
+      }
     };
 
     try {
