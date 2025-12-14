@@ -164,6 +164,32 @@
       border-radius: 3px;
     }
 
+    /* --- Estado de carga prolongada (heredado del dashboard del coach) --- */
+    .loading-panel {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 0.7rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin: 0.45rem 0;
+    }
+    .loading-panel.hidden { display: none; }
+    .loading-panel .spinner {
+      width: 26px;
+      height: 26px;
+      border: 3px solid #dbeafe;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    .loading-meta { font-size: 0.78rem; color: #475569; }
+    .loading-status { font-weight: 600; color: #1f2937; }
+    .loading-warning { color: #b45309; font-size: 0.78rem; margin-top: 0.2rem; }
+
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
     .marks-list {
       list-style: none;
       padding: 0;
@@ -252,10 +278,11 @@
       flex-wrap: wrap;
       gap: 0.5rem;
       margin-top: 0.4rem;
+      align-items: flex-end;
     }
     .filters-row > div {
-      flex: 1 1 130px;
-      min-width: 150px;
+      flex: 1 1 150px;
+      min-width: 170px;
     }
     .inline-checkbox {
       display: inline-flex;
@@ -265,6 +292,16 @@
       color: #374151;
     }
     .inline-checkbox input { width: auto; }
+
+    .filters-checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+      justify-content: center;
+      margin-top: 0.45rem;
+      align-items: center;
+    }
+    .filters-checkboxes .inline-checkbox { margin: 0; }
 
     .profile-meta {
       margin-top: 0.4rem;
@@ -478,6 +515,19 @@
     <p style="font-size:0.75rem;color:#6b7280;margin-top:0;">
       Cada registro muestra el color de tu nivel actual y una frase que te orienta cuán cerca estás del siguiente escalón.
     </p>
+
+    <div id="loadingPanel" class="loading-panel hidden" aria-live="polite">
+      <div class="spinner" role="status" aria-label="Cargando"></div>
+      <div style="flex:1;min-width:0;">
+        <div id="loadingStatus" class="loading-status">Preparando solicitud...</div>
+        <div class="loading-meta">
+          <span id="loadingElapsed">0.0s</span>
+          <span id="loadingExtra" style="margin-left:0.35rem;color:#6b7280;"></span>
+        </div>
+        <div id="loadingWarning" class="loading-warning" style="display:none;">Esto puede tardar un poco, seguimos esperando...</div>
+      </div>
+    </div>
+
     <div class="filters-row">
       <div>
         <label for="filtroEstilo">Filtrar por estilo</label>
@@ -507,18 +557,21 @@
           <option value="todos">Todas</option>
         </select>
       </div>
-      <div class="inline-checkbox">
+    </div>
+
+    <div class="filters-checkboxes">
+      <label class="inline-checkbox">
         <input type="checkbox" id="chkSoloConUSA" onchange="aplicarFiltrosYRender()">
-        <label for="chkSoloConUSA">Solo con estándar USA cargado</label>
-      </div>
-      <div class="inline-checkbox">
+        <span>Solo con estándar USA cargado</span>
+      </label>
+      <label class="inline-checkbox">
         <input type="checkbox" id="chkSoloConCADDA" onchange="aplicarFiltrosYRender()">
-        <label for="chkSoloConCADDA">Solo con mínima CADDA cargada</label>
-      </div>
-      <div class="inline-checkbox">
+        <span>Solo con mínima CADDA cargada</span>
+      </label>
+      <label class="inline-checkbox">
         <input type="checkbox" id="chkIncluirEliminadas" onchange="aplicarFiltrosYRender()">
-        <label for="chkIncluirEliminadas">Incluir eliminadas</label>
-      </div>
+        <span>Incluir eliminadas</span>
+      </label>
     </div>
     <div id="resultCount" class="msg" style="margin-top:0.2rem;"></div>
     <ul id="marksList" class="marks-list"></ul>
@@ -543,6 +596,10 @@
     editingMarkId: null
   };
 
+  const LONG_WAIT_HINT_MS = 12000;
+  let currentLoadingStart = null;
+  let currentLoadingTimer = null;
+
   const standardsCache = {};
 
   function $(...ids) {
@@ -564,6 +621,52 @@
     if (!panel) return;
     panel.textContent = text || '';
     panel.className = `status-panel ${type}`.trim();
+  }
+
+  function formatMs(ms) {
+    return (ms / 1000).toFixed(1) + 's';
+  }
+
+  function startLoadingUI(statusText = 'Procesando...') {
+    const panel = $('loadingPanel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    const warning = $('loadingWarning');
+    if (warning) warning.style.display = 'none';
+    const statusEl = $('loadingStatus');
+    if (statusEl) statusEl.textContent = statusText;
+    const extraEl = $('loadingExtra');
+    if (extraEl) extraEl.textContent = 'Esperando respuesta...';
+    currentLoadingStart = Date.now();
+    updateElapsed();
+    if (currentLoadingTimer) clearInterval(currentLoadingTimer);
+    currentLoadingTimer = setInterval(updateElapsed, 500);
+  }
+
+  function updateElapsed() {
+    const elapsedEl = $('loadingElapsed');
+    if (!elapsedEl || !currentLoadingStart) return;
+    const elapsedMs = Date.now() - currentLoadingStart;
+    elapsedEl.textContent = formatMs(elapsedMs);
+    if (elapsedMs >= LONG_WAIT_HINT_MS) {
+      const warning = $('loadingWarning');
+      if (warning) warning.style.display = 'block';
+    }
+  }
+
+  function updateLoadingStatus(text, extra = '') {
+    if (text && $('loadingStatus')) $('loadingStatus').textContent = text;
+    if ($('loadingExtra')) $('loadingExtra').textContent = extra || '';
+  }
+
+  function stopLoadingUI() {
+    if (currentLoadingTimer) clearInterval(currentLoadingTimer);
+    currentLoadingTimer = null;
+    currentLoadingStart = null;
+    const panel = $('loadingPanel');
+    if (panel) panel.classList.add('hidden');
+    const warning = $('loadingWarning');
+    if (warning) warning.style.display = 'none';
   }
 
   function calcularEdad(fecha_nac) {
@@ -914,6 +1017,7 @@
       const url = buildGetUrl('get_swimmer_marks_with_context');
       setLoading(true);
       setStatus('Cargando marcas...', '');
+      startLoadingUI('Cargando marcas...');
       state.currentRequest = url;
       const fetchMarks = async (retries = 1) => {
         try {
@@ -928,6 +1032,7 @@
       };
 
       const data = await fetchMarks(1);
+      updateLoadingStatus('Procesando respuesta...', 'Ordenando y etiquetando marcas');
       if (data.status !== 'ok') {
         throw new Error(data.message || 'No se pudieron cargar las marcas.');
       }
@@ -946,14 +1051,16 @@
       state.currentMarks = marks.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
       poblarFiltros(marks);
       aplicarFiltrosYRender();
-      
+
       if (msg) { msg.textContent = ''; msg.className = 'msg'; }
+      updateLoadingStatus('Listo.', '');
       setStatus('Listo.', 'ok');
     } catch (err) {
       const friendly = formatErr(err);
       if (msg) { msg.textContent = 'Error al cargar marcas: ' + friendly; msg.className = 'msg error'; }
       setStatus('Error: ' + friendly, 'error');
     } finally {
+      stopLoadingUI();
       setLoading(false);
       state.currentRequest = null;
     }
