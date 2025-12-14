@@ -456,6 +456,18 @@
       <span>Habilitar edición/borrado de marcas (si tu licencia lo permite)</span>
     </label>
 
+    <div class="inline-row" style="margin-top:0.35rem; align-items:center; gap:0.6rem;">
+      <label class="inline-checkbox" style="margin:0;">
+        <input type="checkbox" id="allowMarksEditPermission">
+        <span>Permitir al nadador editar sus marcas</span>
+      </label>
+      <label class="inline-checkbox" style="margin:0;">
+        <input type="checkbox" id="allowMarksDeletePermission">
+        <span>Permitir al nadador borrar sus marcas</span>
+      </label>
+    </div>
+    <div id="msgPermisos" class="msg"></div>
+
     <button id="btnGuardarPerfil" onclick="guardarPerfil()">
       <span class="icon">💾</span> Guardar perfil
     </button>
@@ -723,6 +735,11 @@
     profile: 'mdv_swimmer_profile_v3'
   };
 
+  const DEFAULT_PERMISSIONS = {
+    allow_marks_edit: false,
+    allow_marks_delete: false
+  };
+
   const state = {
     isLoading: false,
     autoInterval: null,
@@ -732,7 +749,9 @@
     currentSwimmer: null,
     editingMarkId: null,
     editingMark: null,
-    pendingDeleteId: null
+    pendingDeleteId: null,
+    swimmerPermissions: { ...DEFAULT_PERMISSIONS },
+    savingPermissions: false
   };
 
   const LONG_WAIT_HINT_MS = 12000;
@@ -1000,7 +1019,58 @@
     if (normalized.fecha_nac) {
       normalized.fecha_nac = toDateInputValue(normalized.fecha_nac);
     }
+    if (normalized.allow_marks_edit != null) {
+      normalized.allow_marks_edit = normalizeBool(normalized.allow_marks_edit, false);
+    }
+    if (normalized.allow_marks_delete != null) {
+      normalized.allow_marks_delete = normalizeBool(normalized.allow_marks_delete, false);
+    }
     localStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(normalized));
+  }
+
+  function normalizeBool(value, defaultValue = false) {
+    if (value == null || value === '') return defaultValue;
+    if (typeof value === 'string') {
+      const v = value.trim().toLowerCase();
+      if (['true', '1', 'yes', 'si', 'sí', 'y'].includes(v)) return true;
+      if (['false', '0', 'no', 'n'].includes(v)) return false;
+    }
+    return !!value;
+  }
+
+  function normalizePermissions(perms = {}) {
+    return {
+      allow_marks_edit: normalizeBool(perms.allow_marks_edit ?? perms.allow_edit ?? perms.permitir_editar_marcas, DEFAULT_PERMISSIONS.allow_marks_edit),
+      allow_marks_delete: normalizeBool(perms.allow_marks_delete ?? perms.allow_delete ?? perms.permitir_borrar_marcas, DEFAULT_PERMISSIONS.allow_marks_delete)
+    };
+  }
+
+  function applyPermissionsToUI(perms = {}, { skipSave = false } = {}) {
+    const normalized = { ...DEFAULT_PERMISSIONS, ...normalizePermissions(perms) };
+    state.swimmerPermissions = { ...normalized };
+    const editToggle = $('allowMarksEditPermission');
+    if (editToggle) editToggle.checked = !!normalized.allow_marks_edit;
+    const deleteToggle = $('allowMarksDeletePermission');
+    if (deleteToggle) deleteToggle.checked = !!normalized.allow_marks_delete;
+
+    if (!skipSave) {
+      const mergedProfile = { ...(state.currentSwimmer || {}), ...normalized };
+      state.currentSwimmer = { ...mergedProfile };
+      saveProfile(mergedProfile);
+    }
+  }
+
+  function updatePermissionControlsAvailability() {
+    const coach_id = $('coach_id')?.value?.trim();
+    const swimmer_id = $('swimmer_id')?.value?.trim();
+    const disabled = !coach_id || !swimmer_id;
+    ['allowMarksEditPermission', 'allowMarksDeletePermission'].forEach((id) => {
+      const el = $(id);
+      if (el) el.disabled = disabled;
+    });
+    if (disabled) {
+      applyPermissionsToUI(DEFAULT_PERMISSIONS, { skipSave: true });
+    }
   }
 
   function fillProfile(profile = {}, { onlyEmpty = false } = {}) {
@@ -1019,6 +1089,7 @@
     if (!onlyEmpty || !$('swimmer_id')?.value) {
       $('swimmer_id') && ( $('swimmer_id').value = profile.swimmer_id || $('swimmer_id').value );
     }
+    applyPermissionsToUI(profile, { skipSave: onlyEmpty });
     actualizarEdadYCategoria();
   }
 
@@ -1041,6 +1112,7 @@
     });
     $('profileMeta') && ( $('profileMeta').innerHTML = '' );
     setStatus('Datos locales limpiados.', '');
+    updatePermissionControlsAvailability();
   }
 
   function setLoading(isLoading) {
@@ -1089,6 +1161,98 @@
     return `${url}?${params.toString()}`;
   }
 
+  async function getSwimmerPermissions(swimmer_id) {
+    const swimmerId = swimmer_id || $('swimmer_id')?.value?.trim();
+    if (!swimmerId) throw new Error('Completá Coach ID y Swimmer ID.');
+    const url = buildGetUrl('get_swimmer_permissions', { requireSwimmerId: false, params: { swimmer_id: swimmerId } });
+    const res = await fetchWithTimeout(url, {}, 12000);
+    const data = await res.json();
+    const perms = data?.permissions || data?.permisos || data?.swimmer || data || {};
+    const normalized = normalizePermissions(perms);
+    applyPermissionsToUI(normalized);
+    return normalized;
+  }
+
+  async function setSwimmerPermissions(swimmer_id, patch = {}) {
+    const url = syncWebAppUrl_();
+    const coach_id = $('coach_id')?.value?.trim();
+    const swimmerId = swimmer_id || $('swimmer_id')?.value?.trim();
+    if (!url) throw new Error('Falta configurar la URL Web App del coach.');
+    if (!coach_id) throw new Error('Completá Coach ID.');
+    if (!swimmerId) throw new Error('Completá Coach ID y Swimmer ID.');
+
+    const params = new URLSearchParams({
+      action: 'set_swimmer_permissions',
+      coach_id,
+      swimmer_id: swimmerId
+    });
+
+    if (patch.allow_marks_edit != null) params.append('allow_marks_edit', normalizeBool(patch.allow_marks_edit));
+    if (patch.allow_marks_delete != null) params.append('allow_marks_delete', normalizeBool(patch.allow_marks_delete));
+
+    const res = await fetchWithTimeout(url, { method: 'POST', body: params }, 15000);
+    const data = await res.json();
+    const perms = data?.permissions || data?.permisos || data?.swimmer || data || {};
+    const normalized = { ...patch, ...perms };
+    applyPermissionsToUI(normalized);
+    return normalizePermissions(normalized);
+  }
+
+  async function refreshSwimmerPermissions({ swimmer = null } = {}) {
+    const msg = $('msgPermisos');
+    updatePermissionControlsAvailability();
+    const coach_id = $('coach_id')?.value?.trim();
+    const swimmerId = swimmer?.swimmer_id || $('swimmer_id')?.value?.trim();
+    if (!coach_id || !swimmerId) {
+      if (msg) { msg.textContent = 'Cargá Coach ID y Swimmer ID para gestionar permisos.'; msg.className = 'msg'; }
+      return;
+    }
+
+    if (swimmer) applyPermissionsToUI(swimmer, { skipSave: false });
+
+    try {
+      if (msg) { msg.textContent = 'Cargando permisos...'; msg.className = 'msg'; }
+      const updated = await getSwimmerPermissions(swimmerId);
+      if (msg) { msg.textContent = 'Permisos actualizados.'; msg.className = 'msg ok'; }
+      return updated;
+    } catch (err) {
+      if (msg) { msg.textContent = 'No se pudieron cargar permisos: ' + formatErr(err); msg.className = 'msg error'; }
+      console.warn('No se pudieron cargar permisos', err);
+      return { ...DEFAULT_PERMISSIONS };
+    }
+  }
+
+  async function handlePermissionToggleChange() {
+    const msg = $('msgPermisos');
+    if (state.savingPermissions) return;
+    updatePermissionControlsAvailability();
+    const coach_id = $('coach_id')?.value?.trim();
+    const swimmer_id = $('swimmer_id')?.value?.trim();
+    if (!coach_id || !swimmer_id) {
+      if (msg) { msg.textContent = 'Completá Coach ID y Swimmer ID para guardar permisos.'; msg.className = 'msg error'; }
+      updatePermissionControlsAvailability();
+      return;
+    }
+
+    const patch = {
+      allow_marks_edit: $('allowMarksEditPermission')?.checked,
+      allow_marks_delete: $('allowMarksDeletePermission')?.checked
+    };
+
+    try {
+      state.savingPermissions = true;
+      if (msg) { msg.textContent = 'Guardando permisos...'; msg.className = 'msg'; }
+      const updated = await setSwimmerPermissions(swimmer_id, patch);
+      applyPermissionsToUI(updated);
+      if (msg) { msg.textContent = 'Permisos guardados.'; msg.className = 'msg ok'; }
+    } catch (err) {
+      if (msg) { msg.textContent = 'No se pudieron guardar los permisos: ' + formatErr(err); msg.className = 'msg error'; }
+      applyPermissionsToUI(state.swimmerPermissions || DEFAULT_PERMISSIONS, { skipSave: true });
+    } finally {
+      state.savingPermissions = false;
+    }
+  }
+
   async function cargarPerfil() {
     if (state.isLoading) return;
     setLoading(true);
@@ -1123,6 +1287,7 @@
         fillProfile(swimmerFromList, { onlyEmpty: false });
         saveProfile({ ...swimmerFromList });
         persistConfigFromInputs();
+        await refreshSwimmerPermissions({ swimmer: swimmerFromList });
         setStatus('Perfil sincronizado.', 'ok');
         $('msgPerfil') && ( $('msgPerfil').textContent = '' );
         return;
@@ -1150,6 +1315,7 @@
       fillProfile(swimmer, { onlyEmpty: false });
       saveProfile({ ...swimmer });
       persistConfigFromInputs();
+      await refreshSwimmerPermissions({ swimmer });
       setStatus('Perfil sincronizado y guardado localmente.', 'ok');
       $('msgPerfil') && ( $('msgPerfil').textContent = '' );
     } catch (err) {
@@ -1199,6 +1365,7 @@
         fillProfile(data.swimmer, { onlyEmpty: true });
         saveProfile({ ...data.swimmer });
         persistConfigFromInputs();
+        await refreshSwimmerPermissions({ swimmer: data.swimmer });
         state.currentSwimmer = data.swimmer;
       }
 
@@ -2130,6 +2297,7 @@
       setStatus('Perfil restaurado desde el dispositivo.', 'ok');
       state.currentSwimmer = { ...profile };
     }
+    updatePermissionControlsAvailability();
   }
 
   function attachListeners() {
@@ -2138,6 +2306,7 @@
       if (el) {
         el.addEventListener('input', () => {
           persistConfigFromInputs();
+          updatePermissionControlsAvailability();
           if (id === 'swimmer_id') {
             const notice = $('swimmerNotice');
             if (notice) { notice.textContent = 'Swimmer ID cambió, puedes sincronizar el perfil.'; notice.className = 'msg'; }
@@ -2157,6 +2326,12 @@
         aplicarFiltrosYRender();
       });
     }
+
+    const permToggles = ['allowMarksEditPermission', 'allowMarksDeletePermission'];
+    permToggles.forEach((id) => {
+      const el = $(id);
+      if (el) el.addEventListener('change', handlePermissionToggleChange);
+    });
   }
 
   async function sincronizarMarcasAlArrancar() {
