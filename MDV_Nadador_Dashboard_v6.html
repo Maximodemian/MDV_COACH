@@ -861,8 +861,9 @@
     return [fecha, estilo, distancia, curso, tiempo, lugarEvento].join('|');
   }
 
-  async function fetchMarksSnapshot(coach_id, swimmer_id) {
-    const url = buildGetUrl('get_swimmer_marks_with_context', { requireSwimmerId: true });
+  async function fetchMarksSnapshot(coach_id, swimmer_id, cacheBust) {
+    const params = cacheBust ? { _ts: cacheBust } : {};
+    const url = buildGetUrl('get_swimmer_marks_with_context', { requireSwimmerId: true, params });
     const res = await fetchWithTimeout(url, {}, 25000);
     const data = await res.json();
     return { data, marks: data?.marks || [] };
@@ -871,23 +872,44 @@
   async function verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot, nuevaMarca }) {
     const prevMarks = prevSnapshot?.marks || [];
     const prevCount = prevMarks.length;
-    const prevKeys = prevMarks.map(buildMarkKey);
 
-    await delay(500 + Math.floor(Math.random() * 200));
-    const afterSnapshot = await fetchMarksSnapshot(coach_id, swimmer_id);
-    const newMarks = afterSnapshot.marks || [];
-    const newCount = newMarks.length;
-    const newKeys = newMarks.map(buildMarkKey);
-    const targetKey = buildMarkKey(nuevaMarca);
-    const hasCountIncrease = newCount >= prevCount + 1;
-    const hasMatch = newKeys.includes(targetKey) && (!prevKeys.includes(targetKey) || hasCountIncrease);
+    const isSimilarMark = (m) => {
+      if (!m) return false;
+      const fechaM = m.fecha || m.fecha_mark || '';
+      const fechaNueva = nuevaMarca?.fecha || '';
+      const estiloM = (m.estilo || '').toLowerCase();
+      const estiloNueva = (nuevaMarca?.estilo || '').toLowerCase();
+      const distanciaM = Number(m.distancia_m || m.distancia || 0);
+      const distanciaNueva = Number(nuevaMarca?.distancia_m || nuevaMarca?.distancia || 0);
+      const cursoM = (m.curso || '').toLowerCase();
+      const cursoNueva = (nuevaMarca?.curso || '').toLowerCase();
 
-    return {
-      ok: hasCountIncrease || hasMatch,
-      prevCount,
-      newCount,
-      snapshot: afterSnapshot
+      const tiempoM = parseTiempoEnSegundos(m.tiempo_s ?? m.tiempo_raw ?? m.tiempo ?? m.tiempo_str);
+      const tiempoNueva = parseTiempoEnSegundos(nuevaMarca?.tiempo_s ?? nuevaMarca?.tiempo_raw ?? nuevaMarca?.tiempo_str);
+
+      const createdMatch = nuevaMarca?.created_at && m.created_at === nuevaMarca.created_at;
+      const baseMatch = fechaM === fechaNueva && estiloM === estiloNueva && distanciaM === distanciaNueva && cursoM === cursoNueva;
+      const tiempoMatch = tiempoM != null && tiempoNueva != null && Math.abs(tiempoM - tiempoNueva) <= 0.02;
+
+      return createdMatch || (baseMatch && tiempoMatch);
     };
+
+    const delays = [0, 800, 1500];
+    let lastSnapshot = prevSnapshot;
+    for (let i = 0; i < delays.length; i++) {
+      const wait = delays[i];
+      if (wait > 0) await delay(wait);
+      lastSnapshot = await fetchMarksSnapshot(coach_id, swimmer_id, Date.now());
+      const newMarks = lastSnapshot.marks || [];
+      const newCount = newMarks.length;
+      const hasCountIncrease = newCount >= prevCount + 1;
+      const hasSimilar = newMarks.some(isSimilarMark);
+      if (hasCountIncrease || hasSimilar) {
+        return { ok: true, prevCount, newCount, snapshot: lastSnapshot };
+      }
+    }
+
+    return { ok: false, prevCount, newCount: lastSnapshot?.marks?.length || prevCount, snapshot: lastSnapshot };
   }
 
   function normalizarMarca(mark) {
@@ -1043,13 +1065,14 @@
     const swimmer_id = $('swimmer_id')?.value?.trim();
     const fecha = $('fecha_mark')?.value;
     const lugar = $('lugar_evento')?.value?.trim();
-    const curso = $('curso')?.value;
-    const tipo_toma = $('tipo_toma')?.value;
+    const tipo_toma = $('curso')?.value; // En la sheet, tipo_toma = curso (SCM/LCM/SCY)
+    const curso = $('tipo_toma')?.value; // En la sheet, curso = Competencia/Entrenamiento
     const estilo = $('estilo')?.value;
     const distancia = Number($('distancia_m')?.value);
     const carril = $('carril')?.value?.trim();
     const tiempo_raw = $('tiempo_raw')?.value?.trim();
-    const tiempo_s = parseTiempoEnSegundos(tiempo_raw);
+    const tiempo_str = (tiempo_raw || '').replace(',', '.');
+    const tiempo_s = parseTiempoEnSegundos(tiempo_str);
 
     if (!coach_id || !swimmer_id || !fecha || !estilo || !distancia || !tiempo_raw) {
       if (msg) { msg.textContent = 'Faltan datos obligatorios (coach, nadador, fecha, estilo, distancia, tiempo).'; msg.className = 'msg error'; }
@@ -1057,6 +1080,8 @@
     }
 
     const client_mark_id = `MK_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    const created_at = new Date().toISOString();
 
     const mark = {
       fecha,
@@ -1068,8 +1093,9 @@
       distancia_m: distancia,
       carril,
       tiempo_raw,
-      tiempo_str: tiempo_raw,
+      tiempo_str,
       tiempo_s,
+      created_at,
       client_mark_id
     };
 
@@ -1077,7 +1103,6 @@
       action: 'add_mark',
       coach_id,
       swimmer_id,
-      mark,
       fecha,
       lugar_evento: lugar,
       lugar,
@@ -1090,8 +1115,9 @@
       carril,
       tiempo_raw,
       tiempo: tiempo_raw,
-      tiempo_str: tiempo_raw,
+      tiempo_str,
       tiempo_s,
+      created_at,
       client_mark_id
     };
 
@@ -1106,18 +1132,34 @@
     try {
       setLoading(true);
       setStatus('Guardando marca...', '');
-      snapshotPrevio = await fetchMarksSnapshot(coach_id, swimmer_id);
-      logDebug('DEBUG guardarMarca: POST add_mark enviado');
-      const res = await fetchWithTimeout(url, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        cache: 'no-store'
+      snapshotPrevio = await fetchMarksSnapshot(coach_id, swimmer_id, Date.now());
+
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('action', 'add_mark');
+      urlObj.searchParams.set('coach_id', coach_id);
+      urlObj.searchParams.set('swimmer_id', swimmer_id);
+      urlObj.searchParams.set('_ts', Date.now());
+
+      const bodyParams = new URLSearchParams();
+      Object.entries(payload).forEach(([k, v]) => {
+        if (v != null && v !== '') bodyParams.append(k, v);
       });
-      const data = await res.json();
-      logDebug('Respuesta servidor: ' + JSON.stringify(data));
-      if (data.status !== 'ok') {
-        throw new Error(data.message || 'No se pudo guardar.');
+
+      logDebug(`DEBUG guardarMarca: URL=${urlObj.toString()}`);
+      const res = await fetchWithTimeout(urlObj.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: bodyParams.toString(),
+        cache: 'no-store'
+      }, 25000);
+
+      const responseText = await res.text();
+      logDebug(`HTTP ${res.status} ${res.statusText} · bodyHead=${responseText.slice(0, 200)}`);
+      let data = null;
+      try { data = JSON.parse(responseText); } catch (err) { data = null; }
+      if (!res.ok || (data && data.status && data.status !== 'ok')) {
+        const message = (data && data.message) || res.statusText || 'No se pudo guardar.';
+        throw new Error(message);
       }
 
       const verif1 = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: snapshotPrevio, nuevaMarca: mark });
@@ -1133,56 +1175,14 @@
       }
 
       logDebug('Resultado: NO persistido');
-      if (msg) { msg.textContent = 'El servidor respondió OK pero no se verificó persistencia en la planilla (posible payload no interpretado).'; msg.className = 'msg error'; }
-      logDebug('Payload enviado: ' + JSON.stringify(payload));
+      if (msg) { msg.textContent = 'Servidor OK, pero no se confirmó la escritura en la planilla. Revisar endpoint add_mark o permisos.'; msg.className = 'msg error'; }
+      logDebug('Payload enviado: ' + bodyParams.toString());
     } catch (err) {
       const errText = String(err || '');
-      if (errText.includes('Failed to fetch')) {
-        try {
-          logDebug('POST falló (Failed to fetch). Reintentando con GET compacto...');
-          const urlObj = new URL(url);
-          const params = {
-            action: 'add_mark',
-            coach_id,
-            swimmer_id,
-            fecha,
-            estilo,
-            distancia_m: distancia,
-            curso,
-            tipo_toma,
-            tiempo_raw,
-            carril,
-            lugar_evento: lugar
-          };
-          Object.entries(params).forEach(([k, v]) => {
-            if (v != null && v !== '') urlObj.searchParams.set(k, v);
-          });
-          const resGet = await fetchWithTimeout(urlObj.toString(), { method: 'GET', cache: 'no-store' });
-          const dataGet = await resGet.json();
-          logDebug('Respuesta servidor (GET fallback): ' + JSON.stringify(dataGet));
-          if (dataGet.status === 'ok') {
-            const verifFallback = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: snapshotPrevio, nuevaMarca: mark });
-            logDebug(`Verificación GET: prevCount=${verifFallback.prevCount} newCount=${verifFallback.newCount}`);
-            if (verifFallback.ok) {
-              if (msg) { msg.textContent = 'Marca guardada correctamente.'; msg.className = 'msg ok'; }
-              if ($('tiempo_raw')) $('tiempo_raw').value = '';
-              setStatus('Marca guardada y verificada.', 'ok');
-              await cargarMisMarcas();
-              return;
-            }
-          }
-          throw new Error((dataGet && dataGet.message) || 'No se pudo guardar con GET.');
-        } catch (fallbackErr) {
-          if (msg) { msg.textContent = 'Error: ' + fallbackErr; msg.className = 'msg error'; }
-          const extra = debugLogs.length ? `\n${debugLogs.join('\n')}` : '';
-          setStatus('Error al guardar marca: ' + fallbackErr + extra, 'error');
-          return;
-        }
-      }
-
-      if (msg) { msg.textContent = 'Error: ' + err; msg.className = 'msg error'; }
+      if (msg) { msg.textContent = 'Error: ' + errText; msg.className = 'msg error'; }
       const extra = debugLogs.length ? `\n${debugLogs.join('\n')}` : '';
-      setStatus('Error al guardar marca: ' + err + extra, 'error');
+      const hint = errText.includes('Failed to fetch') ? '\nSugerencia: revisar despliegue: acceso “Cualquiera” y ejecutar como propietario.' : '';
+      setStatus('Error al guardar marca: ' + errText + hint + extra, 'error');
     } finally {
       setLoading(false);
     }
