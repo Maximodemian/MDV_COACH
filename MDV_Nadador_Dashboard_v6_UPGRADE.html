@@ -250,6 +250,61 @@
     .brecha-pos { color:#b91c1c; }
     .brecha-neg { color:#15803d; }
 
+    /* Acciones inline para edición/borrado */
+    .mark-actions {
+      display: flex;
+      gap: 0.3rem;
+      margin-top: 0.35rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .icon-btn {
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      color: #111827;
+      border-radius: 8px;
+      padding: 0.25rem 0.45rem;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .icon-btn:hover { background: #eef2ff; border-color: #c7d2fe; }
+    .icon-btn.danger { background: #fef2f2; border-color: #fecdd3; color: #991b1b; }
+    .icon-btn.danger:hover { background: #fee2e2; }
+
+    /* Modal básico */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      z-index: 30;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.18);
+      max-width: 520px;
+      width: 100%;
+      padding: 1rem 1.1rem;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal h3 { margin-top: 0; margin-bottom: 0.35rem; }
+    .modal .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.4rem;
+      margin-top: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .modal .chips-row { margin-top: 0.25rem; }
+
     .chips-row {
       display: flex;
       flex-wrap: wrap;
@@ -578,6 +633,88 @@
     <div id="msgMarks" class="msg"></div>
   </section>
 
+  <!-- Modales para edición/borrado de marcas -->
+  <div id="editMarkModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h3>Editar marca</h3>
+      <p style="font-size:0.82rem;color:#4b5563;">Actualizá los datos y guardá para sobrescribir el registro.</p>
+      <div class="inline-row">
+        <div>
+          <label>Fecha
+            <input id="edit_fecha_mark" type="date" onchange="updateEditMarkMetaChips()">
+          </label>
+        </div>
+        <div>
+          <label>Lugar / Evento
+            <input id="edit_lugar_evento" type="text">
+          </label>
+        </div>
+      </div>
+      <div class="chips-row" id="chipsMetaMarcaEdit"></div>
+      <div class="inline-row">
+        <div>
+          <label>Curso (tipo de pileta)
+            <select id="edit_curso">
+              <option value="LCM">LCM · 50 m (olímpica)</option>
+              <option value="SCM">SCM · 25 m (semiolímpica)</option>
+              <option value="SCY">SCY · 25 yd</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <label>Tipo de toma
+            <select id="edit_tipo_toma">
+              <option value="Competencia">Competencia</option>
+              <option value="Test">Test</option>
+              <option value="Entrenamiento">Entrenamiento</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="inline-row">
+        <div>
+          <label>Estilo
+            <select id="edit_estilo">
+              <option value="Freestyle">Libre</option>
+              <option value="Backstroke">Espalda</option>
+              <option value="Breaststroke">Pecho</option>
+              <option value="Butterfly">Mariposa</option>
+              <option value="IM">Combinado</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <label>Distancia (m)
+            <input id="edit_distancia_m" type="number" placeholder="50, 100, 200...">
+          </label>
+        </div>
+        <div>
+          <label>Carril
+            <input id="edit_carril" type="text">
+          </label>
+        </div>
+      </div>
+      <label>Tiempo (m:ss.cc o ss.cc)
+        <input id="edit_tiempo_raw" type="text" placeholder="0:34.82 o 34.82">
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="ghost" onclick="cerrarModalEdicion()">Cancelar</button>
+        <button type="button" onclick="guardarMarcaDesdeModal()"><span class="icon">💾</span> Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="deleteMarkModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h3>Confirmar eliminación</h3>
+      <p id="deleteMarkSummary" style="font-size:0.82rem;color:#4b5563;"></p>
+      <div class="modal-actions">
+        <button type="button" class="ghost" onclick="cerrarModalBorrado()">Cancelar</button>
+        <button type="button" class="secondary" onclick="confirmarBorradoMarca()"><span class="icon">🗑️</span> Eliminar</button>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <script>
@@ -593,7 +730,9 @@
     lastConfig: {},
     currentMarks: [],
     currentSwimmer: null,
-    editingMarkId: null
+    editingMarkId: null,
+    editingMark: null,
+    pendingDeleteId: null
   };
 
   const LONG_WAIT_HINT_MS = 12000;
@@ -767,6 +906,19 @@
     chips.innerHTML = parts.join(' ');
   }
 
+  function updateEditMarkMetaChips() {
+    const chips = $('chipsMetaMarcaEdit');
+    if (!chips) return;
+    const fechaMark = $('edit_fecha_mark')?.value;
+    const fechaNac = $('fecha_nac')?.value;
+    const edad = computeAgeChip(fechaNac, fechaMark);
+    const season = deriveSeasonYear(fechaMark);
+    const parts = [];
+    if (season != null) parts.push(`<span class="chip-small">Año: ${season}</span>`);
+    if (edad != null) parts.push(`<span class="chip-small">Edad al momento: ${edad}</span>`);
+    chips.innerHTML = parts.join(' ');
+  }
+
   function generarSwimmerId(nombre, fecha_nac, coach_id) {
     const baseNombre = (nombre || '').trim().toUpperCase().replace(/\s+/g, '_');
     const año = fecha_nac ? fecha_nac.substring(0, 4) : 'XXXX';
@@ -816,7 +968,13 @@
   }
 
   function canEditMarks() {
-    return !!getConfigValue('allow_swimmer_mark_edit');
+    const toggle = $('allowEditMarksToggle');
+    const allowByToggle = toggle ? toggle.checked : true;
+    const allowByConfig = getConfigValue('allow_swimmer_mark_edit');
+    const coachGate = getConfigValue('allow_swimmer_mark_edit_from_coach');
+    const coachAllows = coachGate !== false; // quedará listo para que el coach lo anule
+    const configAllows = allowByConfig !== false; // por defecto habilitado hasta que el coach lo limite
+    return allowByToggle && coachAllows && configAllows;
   }
 
   function updateConfigFromResponse(data) {
@@ -1491,8 +1649,12 @@
     ].filter(Boolean).join(' ');
     const editButtons = canEditMarks() && (m.mark_id || m.client_mark_id) ? `
       <div class="mark-actions">
-        <button type="button" class="ghost" onclick="editarMarca('${m.mark_id || m.client_mark_id}')">✏️ Editar</button>
-        <button type="button" class="secondary" onclick="borrarMarca('${m.mark_id || m.client_mark_id}')">🗑️ Borrar</button>
+        <button type="button" class="icon-btn" onclick="abrirModalEdicion('${m.mark_id || m.client_mark_id}')" aria-label="Editar marca">
+          ✏️ <span>Editar</span>
+        </button>
+        <button type="button" class="icon-btn danger" onclick="abrirModalBorrado('${m.mark_id || m.client_mark_id}')" aria-label="Eliminar marca">
+          🗑️ <span>Eliminar</span>
+        </button>
       </div>` : '';
     const deletedInfo = m.deleted_at ? `<div class="mark-sub" style="color:#b91c1c;">Eliminada el ${formatearFecha(m.deleted_at)}</div>` : '';
 
@@ -1524,23 +1686,78 @@
     list.appendChild(li);
   }
 
-  function editarMarca(markId) {
+  function getMarkById(markId) {
+    return (state.currentMarks || []).find((m) => (m.mark_id || m.client_mark_id) === markId);
+  }
+
+  function abrirModalEdicion(markId) {
     if (!canEditMarks()) return;
-    const mark = (state.currentMarks || []).find((m) => (m.mark_id || m.client_mark_id) === markId);
+    const mark = getMarkById(markId);
     if (!mark) return;
     state.editingMarkId = mark.mark_id || markId;
-    $('fecha_mark') && ($('fecha_mark').value = toDateInputValue(mark.fecha));
-    $('lugar_evento') && ($('lugar_evento').value = mark.lugar_evento || mark.lugar || '');
-    $('curso') && ($('curso').value = mark.tipo_toma || mark.curso || '');
-    $('tipo_toma') && ($('tipo_toma').value = mark.curso || mark.tipo || '');
-    $('estilo') && ($('estilo').value = mark.estilo || '');
-    $('distancia_m') && ($('distancia_m').value = mark.distancia_m || mark.distancia || '');
-    $('carril') && ($('carril').value = mark.carril || '');
-    $('tiempo_raw') && ($('tiempo_raw').value = mark.tiempo_raw || mark.tiempo_str || '');
-    updateMarkMetaChips();
-    const btn = $('btnGuardarMarca');
-    if (btn) btn.textContent = 'Actualizar marca';
+    state.editingMark = mark;
+    $('edit_fecha_mark') && ($('edit_fecha_mark').value = toDateInputValue(mark.fecha));
+    $('edit_lugar_evento') && ($('edit_lugar_evento').value = mark.lugar_evento || mark.lugar || '');
+    $('edit_curso') && ($('edit_curso').value = (mark.pool_course || mark.curso || mark.tipo_toma || 'LCM'));
+    $('edit_tipo_toma') && ($('edit_tipo_toma').value = (mark.tipo_toma || mark.tipo || mark.curso || 'Competencia'));
+    $('edit_estilo') && ($('edit_estilo').value = mark.estilo || '');
+    $('edit_distancia_m') && ($('edit_distancia_m').value = mark.distancia_m || mark.distancia || '');
+    $('edit_carril') && ($('edit_carril').value = mark.carril || '');
+    $('edit_tiempo_raw') && ($('edit_tiempo_raw').value = mark.tiempo_raw || mark.tiempo_str || '');
+    updateEditMarkMetaChips();
+    const modal = $('editMarkModal');
+    if (modal) modal.classList.remove('hidden');
     setStatus('Editando marca seleccionada.', '');
+  }
+
+  function cerrarModalEdicion() {
+    const modal = $('editMarkModal');
+    if (modal) modal.classList.add('hidden');
+    state.editingMarkId = null;
+    state.editingMark = null;
+  }
+
+  async function guardarMarcaDesdeModal() {
+    if (!canEditMarks()) return;
+    const ok = await guardarMarca('edit_');
+    if (ok) cerrarModalEdicion();
+  }
+
+  function abrirModalBorrado(markId) {
+    if (!canEditMarks()) return;
+    const mark = getMarkById(markId);
+    if (!mark) return;
+    state.pendingDeleteId = mark.mark_id || markId;
+    const summary = $('deleteMarkSummary');
+    if (summary) {
+      summary.textContent = resumenMarca(mark);
+    }
+    const modal = $('deleteMarkModal');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  function cerrarModalBorrado() {
+    const modal = $('deleteMarkModal');
+    if (modal) modal.classList.add('hidden');
+    state.pendingDeleteId = null;
+  }
+
+  async function confirmarBorradoMarca() {
+    if (!state.pendingDeleteId) return;
+    const ok = await borrarMarca(state.pendingDeleteId);
+    if (ok) cerrarModalBorrado();
+  }
+
+  function editarMarca(markId) {
+    abrirModalEdicion(markId);
+  }
+
+  function resumenMarca(mark) {
+    if (!mark) return '';
+    const prueba = mark.prueba || `${mark.estilo || ''} ${mark.distancia_m || mark.distancia || ''}m`;
+    const fecha = formatearFecha(mark.fecha);
+    const tiempo = mark.tiempo_str || mark.tiempo_raw || '';
+    return `${prueba} · ${tiempo} · ${fecha}`;
   }
 
   async function borrarMarca(markId) {
@@ -1551,10 +1768,9 @@
     const swimmer_id = $('swimmer_id')?.value?.trim();
     if (!url || !coach_id || !swimmer_id || !markId) {
       if (msg) { msg.textContent = 'No se puede eliminar: faltan datos base.'; msg.className = 'msg error'; }
-      return;
+      return false;
     }
-    const confirmado = confirm('¿Seguro que quieres eliminar esta marca? Se usará eliminación lógica.');
-    if (!confirmado) return;
+    let ok = false;
     try {
       setLoading(true);
       setStatus('Eliminando marca...', '');
@@ -1567,6 +1783,7 @@
       const data = await res.json();
       if (data.status !== 'ok') throw new Error(data.message || 'No se pudo eliminar.');
       setStatus('Marca eliminada (soft delete).', 'ok');
+      ok = true;
       await cargarMisMarcas();
     } catch (err) {
       if (msg) { msg.textContent = 'Error al eliminar: ' + err; msg.className = 'msg error'; }
@@ -1574,6 +1791,7 @@
     } finally {
       setLoading(false);
     }
+    return ok;
   }
 
   async function guardarPerfil() {
@@ -1581,7 +1799,7 @@
     const msg = $('msgPerfil');
     if (!url) {
       if (msg) { msg.textContent = 'Falta configurar la URL Web App del coach.'; msg.className = 'msg error'; }
-      return;
+      return false;
     }
 
     const coach_id = $('coach_id')?.value?.trim();
@@ -1636,25 +1854,26 @@
     }
   }
 
-  async function guardarMarca() {
+  async function guardarMarca(prefix = '') {
     const url = syncWebAppUrl_();
     const msg = $('msgMark');
     if (!url) {
       if (msg) { msg.textContent = 'Falta configurar la URL Web App del coach.'; msg.className = 'msg error'; }
-      return;
+      return false;
     }
 
+    const get = (id) => $(`${prefix}${id}`);
     const coach_id = $('coach_id')?.value?.trim();
     const swimmer_id = $('swimmer_id')?.value?.trim();
-    const fecha = $('fecha_mark')?.value;
+    const fecha = get('fecha_mark')?.value;
     const fecha_nac = $('fecha_nac')?.value;
-    const lugar = $('lugar_evento')?.value?.trim();
-    const tipo_toma = $('curso')?.value; // En la sheet, tipo_toma = curso (SCM/LCM/SCY)
-    const curso = $('tipo_toma')?.value; // En la sheet, curso = Competencia/Entrenamiento
-    const estilo = $('estilo')?.value;
-    const distancia = Number($('distancia_m')?.value);
-    const carril = $('carril')?.value?.trim();
-    const tiempo_raw = $('tiempo_raw')?.value?.trim();
+    const lugar = get('lugar_evento')?.value?.trim();
+    const tipo_toma = get('curso')?.value; // En la sheet, tipo_toma = curso (SCM/LCM/SCY)
+    const curso = get('tipo_toma')?.value; // En la sheet, curso = Competencia/Entrenamiento
+    const estilo = get('estilo')?.value;
+    const distancia = Number(get('distancia_m')?.value);
+    const carril = get('carril')?.value?.trim();
+    const tiempo_raw = get('tiempo_raw')?.value?.trim();
     const tiempo_str = (tiempo_raw || '').replace(',', '.');
     const tiempo_s = parseTiempoEnSegundos(tiempo_str);
     const season_year = deriveSeasonYear(fecha);
@@ -1662,12 +1881,12 @@
 
     if (!fecha) {
       if (msg) { msg.textContent = 'La fecha es obligatoria para guardar la marca.'; msg.className = 'msg error'; }
-      return;
+      return false;
     }
 
     if (!coach_id || !swimmer_id || !estilo || !distancia || !tiempo_raw) {
       if (msg) { msg.textContent = 'Faltan datos obligatorios (coach, nadador, fecha, estilo, distancia, tiempo).'; msg.className = 'msg error'; }
-      return;
+      return false;
     }
 
     const client_mark_id = `MK_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -1693,6 +1912,7 @@
     };
 
     const markNormalized = normalizeMark({ ...mark });
+    let wasSuccessful = false;
 
     const payload = {
       action: state.editingMarkId ? 'update_mark' : 'add_mark',
@@ -1766,10 +1986,12 @@
         if (msg) { msg.textContent = 'Marca actualizada correctamente.'; msg.className = 'msg ok'; }
         setStatus('Marca actualizada.', 'ok');
         state.editingMarkId = null;
+        state.editingMark = null;
         const btn = $('btnGuardarMarca');
         if (btn) btn.textContent = 'Guardar marca';
+        wasSuccessful = true;
         await cargarMisMarcas();
-        return;
+        return true;
       }
 
       const verif1 = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: snapshotPrevio, nuevaMarca: markNormalized });
@@ -1779,9 +2001,10 @@
         logDebug('Resultado: persistido');
         if (msg) { msg.textContent = 'Marca guardada correctamente.'; msg.className = 'msg ok'; }
         if ($('tiempo_raw')) $('tiempo_raw').value = '';
+        wasSuccessful = true;
         setStatus('Marca guardada y verificada.', 'ok');
         await cargarMisMarcas();
-        return;
+        return true;
       }
 
       logDebug('Resultado: NO persistido');
@@ -1796,6 +2019,7 @@
     } finally {
       setLoading(false);
     }
+    return wasSuccessful;
   }
 
   function cursoToLabel(curso) {
@@ -1896,7 +2120,9 @@
     if (swimmerInput && cfg.swimmer_id && !swimmerInput.value) swimmerInput.value = cfg.swimmer_id;
 
     const allowEditToggle = $('allowEditMarksToggle');
-    if (allowEditToggle) allowEditToggle.checked = !!cfg.allow_swimmer_mark_edit;
+    if (allowEditToggle) {
+      allowEditToggle.checked = cfg.allow_swimmer_mark_edit !== false;
+    }
 
     const profile = loadProfileFromStorage();
     fillProfile(profile, { onlyEmpty: true });
