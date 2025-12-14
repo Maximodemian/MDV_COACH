@@ -1,0 +1,1672 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>MDV Swim · Dashboard Entrenador</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f3f4f6;
+      color: #111827;
+    }
+    header {
+      background: linear-gradient(90deg,#1e3a8a,#2563eb);
+      color: white;
+      padding: 1rem 1.5rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    header h1 span.logo {
+      display:inline-flex;
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.15);
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    header small {
+      font-size: 0.78rem;
+      opacity: 0.9;
+    }
+    main {
+      padding: 1rem;
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(15,23,42,0.10);
+      padding: 0.9rem 1rem 1rem;
+    }
+    .card h2 {
+      margin-top: 0;
+      font-size: 1rem;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .card h2 span.dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: #2563eb;
+    }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+      color: #374151;
+    }
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.35rem 0.45rem;
+      margin-top: 0.15rem;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-size: 0.8rem;
+      background: #f9fafb;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 1px rgba(37,99,235,0.2);
+      background: white;
+    }
+    button {
+      border: none;
+      cursor: pointer;
+      font-size: 0.8rem;
+      border-radius: 999px;
+      padding: 0.45rem 0.9rem;
+      margin-top: 0.6rem;
+      background: #2563eb;
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    button.secondary {
+      background: #6b7280;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    button span.icon {
+      font-size: 0.8rem;
+    }
+    .msg {
+      font-size: 0.75rem;
+      margin-top: 0.3rem;
+      min-height: 1rem;
+    }
+    .msg.error { color: #b91c1c; }
+    .msg.ok { color: #15803d; }
+    .log-panel {
+      margin-top: 0.75rem;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 0.5rem 0.7rem;
+      font-size: 0.75rem;
+      color: #374151;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .log-panel .title { font-weight: 700; margin-bottom: 0.25rem; display:flex; justify-content:space-between; align-items:center; }
+    .log-entry { margin: 0.12rem 0; }
+    .log-entry.error { color: #b91c1c; }
+    .log-entry.ok { color: #15803d; }
+    .log-entry.muted { color: #6b7280; }
+    .swimmer-list {
+      list-style: none;
+      padding: 0;
+      margin: 0.4rem 0 0;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .swimmer-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.25rem 0.35rem;
+      border-bottom: 1px dashed #e5e7eb;
+      font-size: 0.83rem;
+      cursor: pointer;
+    }
+    .swimmer-item:hover {
+      background: #eff6ff;
+    }
+    .swimmer-item span.tag {
+      font-size: 0.7rem;
+      background: #e5e7eb;
+      border-radius: 999px;
+      padding: 0.1rem 0.5rem;
+      margin-left: 0.25rem;
+    }
+    .swimmer-item.active {
+      background: #dbeafe;
+    }
+
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+    .header-row h2 {
+      border: none;
+      padding-bottom: 0;
+    }
+    .meta {
+      font-size: 0.78rem;
+      color: #4b5563;
+      text-align: right;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.72rem;
+      padding: 0.08rem 0.5rem;
+      border-radius: 999px;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+    .legend {
+      font-size: 0.72rem;
+      color: #6b7280;
+      margin-top: 0.3rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .legend span.box {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    .filters-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      align-items: center;
+      margin-top: 0.3rem;
+      margin-bottom: 0.3rem;
+      font-size: 0.78rem;
+    }
+    .filters-row > div {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .filters-row label {
+      margin-top: 0;
+      font-size: 0.72rem;
+      color: #6b7280;
+    }
+    .filters-row select, .filters-row input[type="checkbox"] {
+      width: auto;
+    }
+    .filters-row .inline {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .summary-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.2rem;
+      font-size: 0.75rem;
+    }
+    .summary-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.1rem 0.6rem;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .table-wrapper {
+      max-height: 380px;
+      overflow: auto;
+      margin-top: 0.4rem;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    th, td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 0.3rem 0.4rem;
+      text-align: center;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    th {
+      background: #eff6ff;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+    .chip-AA { background: #1d4ed8; color: white; }
+    .chip-A { background: #16a34a; color: white; }
+    .chip-AR { background: #eab308; color: #111827; }
+    .chip-none { background: #e5e7eb; color: #374151; }
+    .traffic-green { background: #ecfdf3; color: #166534; }
+    .traffic-yellow { background: #fefce8; color: #92400e; }
+    .traffic-red { background: #fef2f2; color: #b91c1c; }
+
+    .brecha-pos { color: #b91c1c; }  /* le falta */
+    .brecha-neg { color: #15803d; }  /* ya superó el corte */
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.05rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      background: #e5e7eb;
+      color: #374151;
+      white-space: nowrap;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .export-row {
+      margin-top: 0.4rem;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+    .export-row button {
+      background: #0f766e;
+    }
+    .export-row button.secondary {
+      background: #6b7280;
+    }
+  
+    /* --- Mejoras UI v4 --- */
+    .last-updated{font-size:0.75rem;color:#6b7280;margin-top:0.2rem;}
+    .hint{font-size:0.78rem;color:#6b7280;margin-top:0.25rem;}
+    .legend span{ display:inline-flex; align-items:center; gap:.35rem; line-height:1.2; }
+    .box{ flex:0 0 auto; }
+    .chip, .pill, .summary-pill{ line-height:1.25; }
+    .chip{ padding:0.18rem 0.65rem; font-weight:600; }
+    .table-wrapper table td.time-cell{ white-space:nowrap; line-height:1.15; }
+    .time-sub-inline{ font-size:0.72rem; color:#6b7280; font-weight:500; margin-left:6px; }
+    .time-main{ font-weight:700; }
+    .time-sub{ font-size:0.72rem; color:#6b7280; margin-top:2px; }
+    td, th { letter-spacing: 0.01em; }
+
+    /* --- Estado de carga prolongada --- */
+    .loading-panel {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 0.7rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin: 0.45rem 0;
+    }
+    .loading-panel.hidden { display: none; }
+    .loading-panel .spinner {
+      width: 26px;
+      height: 26px;
+      border: 3px solid #dbeafe;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    .loading-meta { font-size: 0.78rem; color: #475569; }
+    .loading-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .loading-status { font-weight: 600; color: #1f2937; }
+    .loading-warning { color: #b45309; font-size: 0.78rem; margin-top: 0.2rem; }
+
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  </style>
+</head>
+<body>
+<header>
+  <h1>
+    <span class="logo">MDV</span>
+    Swim · Dashboard Entrenador
+  </h1>
+  <small>Exploración de nadadores, marcas y proyección vs CADDA / USA Swimming</small>
+</header>
+<main>
+  <div class="layout">
+    <!-- LADO IZQUIERDO: Configuración + Nadadores -->
+    <section class="card">
+      <h2><span class="dot"></span> Conexión</h2>
+      <label>URL Web App (Apps Script)
+        <input id="web_app_url" type="text" placeholder="https://script.google.com/macros/s/XXXXX/exec">
+      </label>
+      <label>Timeout (ms)
+        <input id="timeout_ms" type="number" min="1000" step="1000" placeholder="35000" title="Tiempo máximo de espera por request">
+      </label>
+      <label>Coach ID
+        <input id="coach_id" type="text" placeholder="COACH_MDV_001">
+      </label>
+      <label>Spreadsheet ID (planilla del coach)
+        <input id="spreadsheet_id" type="text" placeholder="ID de Google Sheet">
+      </label>
+      <label class="inline">
+        <input type="checkbox" id="chkAutoRefresh">
+        Auto-actualizar (cada 30 s)
+      </label>
+      <div style="display:flex; gap:0.4rem; flex-wrap:wrap; align-items:center;">
+        <button id="btnCargarSwimmers" onclick="cargarNadadores()">
+          <span class="icon">🔄</span> Cargar / Actualizar nadadores
+        </button>
+        <button id="btnProbar" class="secondary" onclick="probarConexion()">
+          <span class="icon">🩺</span> Probar conexión
+        </button>
+        <button id="btnLimpiarCfg" class="secondary" onclick="limpiarConfig()">
+          <span class="icon">🧹</span> Limpiar configuración
+        </button>
+      </div>
+      <div class="hint">Lee/actualiza desde la planilla del coach. No borra datos, solo refresca la lista.</div>
+      <div style="display:flex; align-items:center; gap:0.35rem; margin-top:0.35rem;">
+        <input type="checkbox" id="chkDebug" style="width:auto;">
+        <label for="chkDebug" style="margin:0;font-size:0.75rem;color:#6b7280;">Modo debug (muestra detalles técnicos)</label>
+      </div>
+      <div id="lastUpdated" class="last-updated"></div>
+      <div id="msgConfig" class="msg"></div>
+      <div class="log-panel">
+        <div class="title">Estado / Logs</div>
+        <div id="statusLog"></div>
+      </div>
+
+      <h2><span class="dot"></span> Nadadores</h2>
+      <ul id="swimmerList" class="swimmer-list"></ul>
+      <div class="msg" style="font-size:0.72rem;color:#6b7280;">
+        Tip: pedile a tus nadadores que usen la app MDV Nadador para ir cargando sus tiempos, y acá ves la foto grande.
+      </div>
+    </section>
+
+    <!-- LADO DERECHO: Informe -->
+    <section class="card">
+      <div class="header-row">
+        <h2><span class="dot"></span> Informe de proyección</h2>
+        <div class="meta" id="metaSwimmer"></div>
+      </div>
+      <div class="legend">
+        <span>
+          <span class="box" style="background:#1d4ed8;"></span> AA (élite USA)
+        </span>
+        <span>
+          <span class="box" style="background:#16a34a;"></span> A (nivel alto USA)
+        </span>
+        <span>
+          <span class="box" style="background:#eab308;"></span> AR (apto ranking nacional)
+        </span>
+        <span>
+          <span class="box" style="background:#e5e7eb;"></span> Sin corte aún
+        </span>
+        <span>
+          <span class="box" style="background:#15803d;"></span> Brecha negativa (ya supera el corte)
+        </span>
+        <span>
+          <span class="box" style="background:#b91c1c;"></span> Brecha positiva (lo que falta)
+        </span>
+      </div>
+      <div id="msgReport" class="msg"></div>
+
+      <div id="loadingPanel" class="loading-panel hidden" aria-live="polite">
+        <div class="spinner" role="status" aria-label="Cargando"></div>
+        <div style="flex:1;min-width:0;">
+          <div id="loadingStatus" class="loading-status">Preparando solicitud...</div>
+          <div class="loading-meta">
+            <span id="loadingElapsed">0.0s</span>
+            <span id="loadingExtra" style="margin-left:0.35rem;color:#6b7280;"></span>
+          </div>
+          <div id="loadingWarning" class="loading-warning" style="display:none;">Esto puede tardar un poco, seguimos esperando...</div>
+        </div>
+        <div class="loading-actions">
+          <button id="btnCancelLoad" class="secondary" type="button">Cancelar carga</button>
+          <button id="btnRetryLoad" class="secondary" type="button">Reintentar</button>
+        </div>
+      </div>
+
+      <div class="filters-row">
+        <div>
+          <label for="filtroEstilo">Filtrar por estilo</label>
+          <select id="filtroEstilo" onchange="renderTabla()">
+            <option value="todos">Todos</option>
+          </select>
+        </div>
+        <div>
+          <label for="filtroNivel">Filtrar por nivel</label>
+          <select id="filtroNivel" onchange="renderTabla()">
+            <option value="todos">Todos</option>
+            <option value="AA">Solo AA</option>
+            <option value="A">Solo A</option>
+            <option value="AR">Solo AR</option>
+            <option value="sin">Sin corte</option>
+          </select>
+        </div>
+        <div>
+          <label for="filtroSeason">Año (season)</label>
+          <select id="filtroSeason" onchange="renderTabla()">
+            <option value="todos">Todos</option>
+          </select>
+        </div>
+        <div>
+          <label for="filtroEdad">Edad (chip)</label>
+          <select id="filtroEdad" onchange="renderTabla()">
+            <option value="todos">Todas</option>
+          </select>
+        </div>
+        <div class="inline">
+          <input type="checkbox" id="chkSoloConUSA" onchange="renderTabla()">
+          <label for="chkSoloConUSA">Solo pruebas con estándar USA cargado</label>
+        </div>
+        <div class="inline">
+          <input type="checkbox" id="chkSoloConCADDA" onchange="renderTabla()">
+          <label for="chkSoloConCADDA">Solo pruebas con mínima CADDA cargada</label>
+        </div>
+        <div class="inline">
+          <input type="checkbox" id="chkIncluirEliminadas" onchange="renderTabla()">
+          <label for="chkIncluirEliminadas">Incluir eliminadas</label>
+        </div>
+      </div>
+
+      <div class="meta" id="resultCount" style="text-align:left;margin:0.25rem 0 0.2rem 0;"></div>
+
+      <div class="summary-row" id="summaryRow"></div>
+
+      <div class="table-wrapper" id="tableWrapper"></div>
+
+      <div class="export-row">
+        <button onclick="exportarCSV()">
+          <span class="icon">⬇️</span> Exportar CSV
+        </button>
+        <!-- Botón a futuro para PDF (requiere backend) -->
+        <!-- <button class="secondary"><span class="icon">📄</span> Exportar PDF</button> -->
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+  function escapeHtml(str){
+    return String(str ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+  }
+
+  function $(...ids){
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  let currentEventos = [];
+  let currentSwimmerMeta = null;
+  let currentReportAbortController = null;
+  let currentLoadingTimer = null;
+  let currentLoadingStart = null;
+  let currentLoadingKey = null;
+
+  const state = {
+    isLoadingSwimmers: false,
+    isLoadingReport: false,
+    isTestingConnection: false,
+    autoRefreshTimer: null,
+    selectedSwimmerId: null,
+    debug: false,
+    swimmerIndex: new Map(),
+    currentMarks: []
+  };
+
+  const LS_KEY = 'MDV_COACH_DASH_FIX_V1';
+  const AUTO_REFRESH_MS = 30000;
+  const DEFAULT_TIMEOUT_MS = 35000;
+  const LONG_WAIT_HINT_MS = 12000;
+  const CACHE_TTL_MS = 3 * 60 * 1000;
+  const CACHE_PREFIX = 'ctx_cache_v1::';
+  const inflightRequests = new Map();
+
+  function logStatus(msg, type = 'info', meta) {
+    const panel = $('statusLog');
+    if (!panel) return;
+    const div = document.createElement('div');
+    let cls = 'log-entry';
+    if (type === 'error') cls += ' error';
+    else if (type === 'ok') cls += ' ok';
+    else if (type === 'muted') cls += ' muted';
+    div.className = cls;
+    const extra = state.debug && meta ? ` | ${meta}` : '';
+    div.textContent = msg + (extra || '');
+    panel.appendChild(div);
+    panel.scrollTop = panel.scrollHeight;
+  }
+
+  function setMsg(elId, text, cls = 'msg') {
+    const el = $(elId);
+    if (!el) return;
+    el.textContent = text;
+    el.className = cls;
+  }
+
+  function getTimeoutMs() {
+    const inputVal = Number($('timeout_ms')?.value);
+    if (!isNaN(inputVal) && inputVal > 0) return inputVal;
+    return DEFAULT_TIMEOUT_MS;
+  }
+
+  function formatMs(ms) { return (ms / 1000).toFixed(1) + 's'; }
+
+  function startLoadingUI(key, statusText = 'Cargando marcas...') {
+    currentLoadingKey = key;
+    const panel = $('loadingPanel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    const warning = $('loadingWarning');
+    if (warning) warning.style.display = 'none';
+    const statusEl = $('loadingStatus');
+    if (statusEl) statusEl.textContent = statusText;
+    const extraEl = $('loadingExtra');
+    if (extraEl) extraEl.textContent = 'Esperando respuesta...';
+    currentLoadingStart = Date.now();
+    updateElapsed();
+    if (currentLoadingTimer) clearInterval(currentLoadingTimer);
+    currentLoadingTimer = setInterval(updateElapsed, 500);
+  }
+
+  function updateElapsed() {
+    const elapsedEl = $('loadingElapsed');
+    if (!elapsedEl || !currentLoadingStart) return;
+    const elapsedMs = Date.now() - currentLoadingStart;
+    elapsedEl.textContent = formatMs(elapsedMs);
+    if (elapsedMs >= LONG_WAIT_HINT_MS) {
+      const warning = $('loadingWarning');
+      if (warning) warning.style.display = 'block';
+    }
+  }
+
+  function updateLoadingStatus(text, extra) {
+    if (text && $('loadingStatus')) $('loadingStatus').textContent = text;
+    if ($('loadingExtra')) $('loadingExtra').textContent = extra || '';
+  }
+
+  function stopLoadingUI() {
+    if (currentLoadingTimer) clearInterval(currentLoadingTimer);
+    currentLoadingTimer = null;
+    currentLoadingStart = null;
+    const panel = $('loadingPanel');
+    if (panel) panel.classList.add('hidden');
+    currentLoadingKey = null;
+  }
+
+  function updateButtonsDisabled() {
+    const flag = state.isLoadingSwimmers || state.isLoadingReport || state.isTestingConnection;
+    ['btnCargarSwimmers','btnProbar','btnLimpiarCfg'].forEach(id => {
+      const el = $(id);
+      if (el) el.disabled = flag;
+    });
+  }
+
+  function setLoadingSwimmers(flag) {
+    state.isLoadingSwimmers = flag;
+    updateButtonsDisabled();
+  }
+
+  function setLoadingReport(flag) {
+    state.isLoadingReport = flag;
+    updateButtonsDisabled();
+  }
+
+  function setTestingConnection(flag) {
+    state.isTestingConnection = flag;
+    updateButtonsDisabled();
+  }
+
+  function getCfg() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+  }
+  function setCfg(patch) {
+    const next = { ...getCfg(), ...patch };
+    localStorage.setItem(LS_KEY, JSON.stringify(next));
+    return next;
+  }
+  function saveCfgFromFields() {
+    const webAppUrl = $('web_app_url')?.value?.trim();
+    const coachId = $('coach_id')?.value?.trim();
+    const spreadsheetId = $('spreadsheet_id')?.value?.trim();
+    const autoRefresh = !!$('chkAutoRefresh')?.checked;
+    const debug = !!$('chkDebug')?.checked;
+    const timeoutMs = Number($('timeout_ms')?.value) || undefined;
+    setCfg({ webAppUrl, coachId, spreadsheetId, autoRefresh, selectedSwimmerId: state.selectedSwimmerId, debug, timeoutMs });
+  }
+  function restoreCfgToFields() {
+    const cfg = getCfg();
+    if (cfg.webAppUrl && $('web_app_url')) $('web_app_url').value = cfg.webAppUrl;
+    if (cfg.coachId && $('coach_id')) $('coach_id').value = cfg.coachId;
+    if (cfg.spreadsheetId && $('spreadsheet_id')) $('spreadsheet_id').value = cfg.spreadsheetId;
+    if (typeof cfg.autoRefresh === 'boolean' && $('chkAutoRefresh')) $('chkAutoRefresh').checked = cfg.autoRefresh;
+    if (typeof cfg.debug === 'boolean' && $('chkDebug')) $('chkDebug').checked = cfg.debug;
+    if (typeof cfg.timeoutMs === 'number' && $('timeout_ms')) $('timeout_ms').value = cfg.timeoutMs;
+    if (cfg.selectedSwimmerId) state.selectedSwimmerId = cfg.selectedSwimmerId;
+    state.debug = !!cfg.debug;
+  }
+
+  function limpiarConfig() {
+    localStorage.removeItem(LS_KEY);
+    ['web_app_url','coach_id','spreadsheet_id'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+    state.selectedSwimmerId = null;
+    state.debug = false;
+    if ($('timeout_ms')) $('timeout_ms').value = '';
+    if ($('chkAutoRefresh')) $('chkAutoRefresh').checked = false;
+    if ($('chkDebug')) $('chkDebug').checked = false;
+    stopAutoRefresh();
+    setMsg('msgConfig','Configuración limpiada.','msg');
+    logStatus('Configuración local eliminada.','muted');
+  }
+
+  function stopAutoRefresh() {
+    if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
+    state.autoRefreshTimer = null;
+  }
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    const cfg = getCfg();
+    if (!cfg.autoRefresh) return;
+    state.autoRefreshTimer = setInterval(() => {
+      if (state.isLoadingSwimmers) return;
+      const c = getCfg();
+      if (!c.webAppUrl || !c.coachId) return;
+      cargarNadadores({ silent: true, keepSelection: true });
+    }, AUTO_REFRESH_MS);
+  }
+
+  function setLastUpdated(ts = new Date()) {
+    const el = $('lastUpdated');
+    if (!el) return;
+    const hh = String(ts.getHours()).padStart(2,'0');
+    const mm = String(ts.getMinutes()).padStart(2,'0');
+    const ss = String(ts.getSeconds()).padStart(2,'0');
+    el.textContent = `Última actualización: ${hh}:${mm}:${ss}`;
+  }
+
+  async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS, externalSignal) {
+    let resolvedTimeout = timeoutMs;
+    let fetchOptions = { ...options };
+    if (typeof options.timeoutMs === 'number') {
+      resolvedTimeout = options.timeoutMs;
+      const { timeoutMs: _discard, ...rest } = options;
+      fetchOptions = rest;
+    }
+    const controller = new AbortController();
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort(externalSignal.reason);
+      else externalSignal.addEventListener('abort', () => controller.abort(externalSignal.reason), { once: true });
+    }
+    const timer = setTimeout(() => controller.abort('timeout'), resolvedTimeout);
+    try {
+      const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
+  function buildUrl(base, action, params = {}) {
+    let full = base + `?action=${action}`;
+    for (const [k,v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') {
+        full += `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`;
+      }
+    }
+    return full;
+  }
+
+  function parseJsonSafe(text) { try { return JSON.parse(text); } catch { return null; } }
+
+  function cacheKeyForContext(coachId, swimmerId, action) {
+    return CACHE_PREFIX + [coachId, swimmerId, action].filter(Boolean).join('::');
+  }
+
+  function readCache(key) {
+    try {
+      const raw = sessionStorage.getItem(key) || localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed;
+    } catch (err) {
+      console.error('Error leyendo cache', err);
+      return null;
+    }
+  }
+
+  function writeCache(key, value) {
+    try {
+      const payload = JSON.stringify({ ...value, ts: Date.now() });
+      sessionStorage.setItem(key, payload);
+    } catch (err) {
+      console.error('Error guardando cache', err);
+    }
+  }
+
+  function cacheFresh(entry) {
+    if (!entry || typeof entry.ts !== 'number') return false;
+    return Date.now() - entry.ts < CACHE_TTL_MS;
+  }
+
+  function deriveSeasonYear(markDate) {
+    const d = markDate instanceof Date ? markDate : new Date(markDate);
+    if (isNaN(d)) return null;
+    return d.getFullYear();
+  }
+
+  function computeAgeChip(dobInput, markDate) {
+    if (!dobInput || !markDate) return null;
+    const dob = dobInput instanceof Date ? dobInput : new Date(dobInput);
+    const mDate = markDate instanceof Date ? markDate : new Date(markDate);
+    if (isNaN(dob) || isNaN(mDate)) return null;
+    let age = mDate.getFullYear() - dob.getFullYear();
+    const monthMark = mDate.getMonth();
+    const dayMark = mDate.getDate();
+    if (monthMark < dob.getMonth() || (monthMark === dob.getMonth() && dayMark < dob.getDate())) {
+      age--;
+    }
+    return age;
+  }
+
+  function buildSwimmerIndex(swimmers = []) {
+    const map = new Map();
+    swimmers.forEach(sw => {
+      if (sw && sw.swimmer_id) map.set(sw.swimmer_id, sw);
+    });
+    return map;
+  }
+
+  function getActiveFilters() {
+    const seasonVal = $('filtroSeason')?.value || 'todos';
+    const ageVal = $('filtroEdad')?.value || 'todos';
+    return {
+      estilo: $('filtroEstilo')?.value || 'todos',
+      nivel: $('filtroNivel')?.value || 'todos',
+      season_year: seasonVal === 'todos' ? null : Number(seasonVal),
+      age_chip: ageVal === 'todos' ? null : Number(ageVal),
+      soloUSA: !!$('chkSoloConUSA')?.checked,
+      soloCADDA: !!$('chkSoloConCADDA')?.checked,
+      includeDeleted: !!$('chkIncluirEliminadas')?.checked
+    };
+  }
+
+  function applyFilters(marks = [], filters = {}) {
+    return marks.filter(mk => {
+      if (!filters.includeDeleted && mk.deleted_at) return false;
+      if (filters.season_year != null && mk.season_year !== filters.season_year) return false;
+      if (filters.age_chip != null && mk.age_chip !== filters.age_chip) return false;
+      if (filters.soloUSA && !mk.has_usa_standard) return false;
+      if (filters.soloCADDA && !mk.has_cadda_min) return false;
+      return true;
+    });
+  }
+
+  function annotateMarksWithFlags(marks = [], swimmerIndex = new Map()) {
+    return marks.map(mk => {
+      const swimmer = mk && mk.swimmer_id ? swimmerIndex.get(mk.swimmer_id) : null;
+      const fecha = mk?.fecha ? new Date(mk.fecha) : null;
+      const season_year = mk?.season_year ?? deriveSeasonYear(fecha);
+      const age_chip = mk?.age_chip ?? computeAgeChip(swimmer?.fecha_nac, fecha);
+      const hasUSA = !!(mk?.usa && (mk.usa.A_s != null || mk.usa.AA_s != null || mk.usa.nivel));
+      const hasCADDA = !!(mk?.cadda && (mk.cadda.tiempo_s != null || (mk.cadda.tipo_marca && String(mk.cadda.tipo_marca).toLowerCase().includes('min'))));
+      return { ...mk, season_year, age_chip, has_usa_standard: hasUSA, has_cadda_min: hasCADDA };
+    });
+  }
+
+  function shouldRetry(res, err) {
+    if (err) {
+      if (err.name === 'AbortError') return err?.message === 'timeout' || err?.message === 'The user aborted a request.';
+      return true; // network error
+    }
+    return res && [502,503,504].includes(res.status);
+  }
+
+  function parseResponseText(text) {
+    const data = parseJsonSafe(text);
+    if (data) return data;
+    return { status: 'error', error: 'Respuesta no es JSON válido', raw: text?.slice(0,200) };
+  }
+
+  async function loadSwimmerContext(baseUrl, coachId, swimmerId, sheetId, externalSignal, opts = {}) {
+    if (!coachId || !swimmerId) throw new Error('Faltan coach_id o swimmer_id');
+    const params = { coach_id: coachId, swimmer_id: swimmerId };
+    if (sheetId) params.spreadsheet_id = sheetId;
+    const action = 'get_swimmer_marks_with_context';
+    const fullUrl = buildUrl(baseUrl, action, params);
+    const key = cacheKeyForContext(coachId, swimmerId, action);
+    const timeoutMs = opts.timeoutMs || getTimeoutMs();
+
+    const cached = readCache(key);
+    if (cached && cacheFresh(cached)) {
+      logStatus('Usando cache local (stale-while-revalidate)','muted', state.debug ? `${fullUrl}` : undefined);
+      const revalidatePromise = triggerRevalidate();
+      return { data: cached.data, meta: { ...cached.meta, fromCache: true, ageMs: Date.now() - cached.ts }, revalidatePromise, fromCache: true };
+    }
+
+    if (inflightRequests.has(key)) {
+      logStatus('Reutilizando request en curso','muted');
+      return inflightRequests.get(key).promise;
+    }
+
+    const controller = new AbortController();
+    currentReportAbortController = controller;
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort(externalSignal.reason);
+      else externalSignal.addEventListener('abort', () => controller.abort('cancelled'), { once: true });
+    }
+
+    const fetchPromise = (async () => {
+      let attempt = 1;
+      let lastError = null;
+      let res = null;
+      const started = Date.now();
+      while (attempt <= 2) {
+        updateLoadingStatus('Cargando marcas...', `Intento ${attempt}/2`);
+        try {
+          res = await fetchWithTimeout(fullUrl, { timeoutMs }, timeoutMs, controller.signal);
+          const text = await res.text();
+          const data = parseResponseText(text);
+          const meta = { url: fullUrl, status: res.status, body: text.slice(0,200), action };
+          const duration = Date.now() - started;
+          const size = text?.length || 0;
+          logStatus(`Resp ${res.status} en ${formatMs(duration)} (${size} chars)`, 'muted', state.debug ? `${fullUrl}` : undefined);
+          if (data.status === 'ok') {
+            writeCache(key, { data, meta });
+            return { data, meta };
+          }
+          if (!shouldRetry(res)) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+          lastError = new Error(data.error || data.message || `HTTP ${res.status}`);
+        } catch (err) {
+          lastError = err;
+          if (controller.signal.aborted) throw err;
+          const isTimeout = err?.message === 'timeout' || err?.name === 'AbortError';
+          if (!shouldRetry(res, err) && !isTimeout) throw err;
+        }
+        const backoff = 800 + Math.floor(Math.random() * 400);
+        await new Promise(r => setTimeout(r, backoff));
+        attempt++;
+      }
+      throw lastError || new Error('Error desconocido');
+    })();
+
+    inflightRequests.set(key, { promise: fetchPromise, controller });
+    try {
+      const result = await fetchPromise;
+      return result;
+    } finally {
+      inflightRequests.delete(key);
+    }
+
+    function triggerRevalidate() {
+      if (inflightRequests.has(key)) return inflightRequests.get(key).promise;
+      const revalidateController = new AbortController();
+      const revalidatePromise = (async () => {
+        try {
+          const res = await fetchWithTimeout(fullUrl, { timeoutMs }, timeoutMs, revalidateController.signal);
+          const text = await res.text();
+          const data = parseResponseText(text);
+          if (data.status === 'ok') {
+            writeCache(key, { data, meta: { url: fullUrl, status: res.status, body: text.slice(0,200), action } });
+            logStatus('Cache actualizada en segundo plano','muted');
+            return { data, meta: { url: fullUrl, status: res.status, body: text.slice(0,200), action } };
+          }
+        } catch (err) {
+          logStatus('Revalidación fallida: ' + err, 'muted');
+        }
+        return null;
+      })();
+      inflightRequests.set(key, { promise: revalidatePromise, controller: revalidateController });
+      revalidatePromise.finally(() => inflightRequests.delete(key));
+      return revalidatePromise;
+    }
+  }
+
+  function isUnknownAction(data) {
+    const msg = (data && (data.error || data.message)) || '';
+    return typeof msg === 'string' && msg.toLowerCase().includes('unknown action');
+  }
+
+  async function fetchSwimmersCompat(baseUrl, coachId, sheetId) {
+    const params = { coach_id: coachId };
+    if (sheetId) params.spreadsheet_id = sheetId;
+    const timeoutMs = getTimeoutMs();
+
+    const firstUrl = buildUrl(baseUrl, 'get_swimmers', params);
+    let res = await fetchWithTimeout(firstUrl, {}, timeoutMs);
+    let text = await res.text();
+    let data = parseJsonSafe(text) || {};
+    logStatus('GET get_swimmers', 'muted', `${res.status}`);
+    if (data.status === 'ok') return { data, meta: { url: firstUrl, status: res.status, body: text.slice(0,200), action: 'get_swimmers' } };
+    if (!isUnknownAction(data)) {
+      throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    }
+
+    const fallbackUrl = buildUrl(baseUrl, 'list_swimmers', params);
+    logStatus('Compatibilidad: fallback a list_swimmers','muted');
+    res = await fetchWithTimeout(fallbackUrl, {}, timeoutMs);
+    text = await res.text();
+    data = parseJsonSafe(text) || {};
+    if (data.status === 'ok') {
+      return { data, meta: { url: fallbackUrl, status: res.status, body: text.slice(0,200), action: 'list_swimmers' } };
+    }
+    throw new Error(data.error || data.message || `HTTP ${res.status}`);
+  }
+
+  async function fetchSwimmerMarksWithContext(baseUrl, coachId, swimmerId, sheetId, signal) {
+    return loadSwimmerContext(baseUrl, coachId, swimmerId, sheetId, signal, { timeoutMs: getTimeoutMs() });
+  }
+
+  function ensureCriticalElements() {
+    const needed = ['web_app_url','coach_id','swimmerList','msgConfig'];
+    for (const id of needed) {
+      if (!($(`${id}`))) {
+        logStatus(`Falta elemento crítico: #${id}`,'error');
+        setMsg('msgConfig', `Error: falta elemento ${id}`, 'msg error');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async function cargarNadadores(opts = {}) {
+    if (!ensureCriticalElements()) return;
+    if (state.isLoadingSwimmers) { logStatus('Carga ignorada: otra operación en curso','muted'); return; }
+    const url = $('web_app_url')?.value?.trim();
+    const coachId = $('coach_id')?.value?.trim();
+    const sheetId = $('spreadsheet_id')?.value?.trim();
+    const silent = !!opts.silent;
+    const keepSelection = !!opts.keepSelection;
+    const msg = $('msgConfig');
+    const list = $('swimmerList');
+    const meta = $('metaSwimmer');
+    const tableWrapper = $('tableWrapper');
+    const msgReport = $('msgReport');
+    const summaryRow = $('summaryRow');
+
+    if (list) list.innerHTML = '';
+    if (!silent) {
+      if (meta) meta.innerText = '';
+      if (tableWrapper) tableWrapper.innerHTML = '';
+      if (msgReport) msgReport.innerText = '';
+      if (summaryRow) summaryRow.innerHTML = '';
+    }
+
+    if (!url || !coachId) {
+      setMsg('msgConfig','Falta URL del Web App o Coach ID.','msg error');
+      logStatus('Falta URL o Coach ID','error');
+      return;
+    }
+
+    setLoadingSwimmers(true);
+    setMsg('msgConfig','Cargando nadadores...','msg');
+    logStatus('Solicitando listado de nadadores...','muted');
+
+    try {
+      saveCfgFromFields();
+      const prevSel = keepSelection ? (state.selectedSwimmerId || getCfg().selectedSwimmerId) : null;
+      const { data, meta: metaInfo } = await fetchSwimmersCompat(url, coachId, sheetId);
+      const swimmers = data.swimmers || [];
+      state.swimmerIndex = buildSwimmerIndex(swimmers);
+      if (!swimmers.length) {
+        setMsg('msgConfig','No se encontraron nadadores para este coach.','msg');
+        logStatus('Sin nadadores devueltos','muted');
+        return;
+      }
+
+      let selectedSwimmerObj = null;
+      swimmers.forEach(sw => {
+        const li = document.createElement('li');
+        li.className = 'swimmer-item';
+        li.dataset.swimmerId = sw.swimmer_id;
+        if (prevSel && sw.swimmer_id === prevSel) {
+          li.classList.add('active');
+          selectedSwimmerObj = sw;
+        }
+        li.innerHTML = `
+          <div>
+            <strong>${sw.nombre}</strong><br>
+            <span style="font-size:0.72rem;color:#6b7280;">ID: ${sw.swimmer_id}</span>
+          </div>
+          <div>
+            <span class="tag">${sw.edad || '?'} años</span>
+            <span class="tag">${sw.genero || ''}</span>
+          </div>
+        `;
+        li.addEventListener('click', () => seleccionarNadador(li, sw));
+        list.appendChild(li);
+      });
+
+      setMsg('msgConfig','Nadadores cargados.','msg ok');
+      setLastUpdated(new Date());
+      startAutoRefresh();
+      logStatus(`OK (${metaInfo?.action || ''}) status ${metaInfo?.status || ''}`,'ok', state.debug ? `${metaInfo?.url || ''} :: ${metaInfo?.body || ''}` : undefined);
+
+      if (selectedSwimmerObj) {
+        setMetaSwimmer(selectedSwimmerObj);
+        await cargarInforme(selectedSwimmerObj.swimmer_id);
+      }
+
+    } catch (err) {
+      setMsg('msgConfig','Error al cargar nadadores: ' + err, 'msg error');
+      logStatus('Error cargando nadadores: ' + err,'error');
+    } finally {
+      setLoadingSwimmers(false);
+    }
+  }
+
+  function limpiarSeleccionLista() {
+    const items = document.querySelectorAll('.swimmer-item');
+    items.forEach(it => it.classList.remove('active'));
+  }
+
+  function setMetaSwimmer(swimmer){
+    const meta = $('metaSwimmer');
+    if (!meta) return;
+    meta.innerHTML = `
+      <span>${swimmer.nombre}</span>
+      <span class="badge">${swimmer.edad || '?'} años</span>
+      <span class="badge">${swimmer.genero || ''}</span>
+    `;
+  }
+
+  async function seleccionarNadador(li, swimmer) {
+    if (state.isLoadingSwimmers) { logStatus('Selección ignorada: carga de nadadores en curso','muted'); return; }
+    limpiarSeleccionLista();
+    li.classList.add('active');
+    state.selectedSwimmerId = swimmer.swimmer_id;
+    saveCfgFromFields();
+    setMetaSwimmer(swimmer);
+    await cargarInforme(swimmer.swimmer_id);
+  }
+
+  async function cargarInforme(swimmerId) {
+    if (state.isLoadingSwimmers) { logStatus('Informe ignorado: carga de nadadores en curso','muted'); return; }
+    const coachIdCheck = $('coach_id')?.value?.trim();
+    const requestKeyCheck = `${coachIdCheck || ''}::${swimmerId || ''}`;
+    if (state.isLoadingReport && currentLoadingKey === requestKeyCheck) {
+      logStatus('Solicitud de informe ignorada: ya hay una en curso','muted');
+      return;
+    }
+    if (currentReportAbortController) {
+      currentReportAbortController.abort('replaced');
+    }
+    const controller = new AbortController();
+    currentReportAbortController = controller;
+    const url = $('web_app_url')?.value?.trim();
+    const coachId = $('coach_id')?.value?.trim();
+    const sheetId = $('spreadsheet_id')?.value?.trim();
+    const msgReport = $('msgReport');
+    const tableWrapper = $('tableWrapper');
+    const summaryRow = $('summaryRow');
+
+    if (tableWrapper) tableWrapper.innerHTML = '';
+    if (summaryRow) summaryRow.innerHTML = '';
+    setMsg('msgReport','');
+
+    if (!url || !coachId) {
+      setMsg('msgReport','Falta Web App URL o Coach ID.','msg error');
+      logStatus('No se puede generar informe: faltan datos','error');
+      return;
+    }
+    const requestKey = `${coachId}::${swimmerId}`;
+    startLoadingUI(requestKey, 'Cargando marcas...');
+    setMsg('msgReport','Generando informe...','msg');
+    setLoadingReport(true);
+    logStatus('Solicitando informe del nadador...','muted');
+
+    try {
+      const { data, meta, fromCache, revalidatePromise } = await fetchSwimmerMarksWithContext(url, coachId, swimmerId, sheetId, controller.signal);
+      aplicarContextoInforme(data, meta, { fromCache });
+      if (fromCache && revalidatePromise) {
+        revalidatePromise.then(res => {
+          if (res && res.data && currentReportAbortController === controller) {
+            logStatus('Revalidación lista, refrescando informe','muted');
+            aplicarContextoInforme(res.data, res.meta, { fromCache: false, silent: true });
+          }
+        });
+      }
+    } catch (err) {
+      if (controller.signal.aborted) {
+        logStatus('Informe cancelado: se inició una nueva solicitud','muted');
+        setMsg('msgReport','Carga cancelada.','msg');
+        return;
+      }
+      const msg = (err?.message === 'timeout') ? `Tiempo de espera agotado (${formatMs(getTimeoutMs())}).` : ('Error al generar informe: ' + err);
+      setMsg('msgReport', msg,'msg error');
+      updateLoadingStatus('Error', '');
+      logStatus('Error generando informe: ' + err,'error');
+    } finally {
+      if (currentReportAbortController === controller) currentReportAbortController = null;
+      setLoadingReport(false);
+      stopLoadingUI();
+    }
+  }
+
+  function aplicarContextoInforme(data, meta, opts = {}) {
+    const swimmer = data?.swimmer || null;
+    const marks = data?.marks || [];
+    state.currentMarks = annotateMarksWithFlags(marks, state.swimmerIndex);
+    currentSwimmerMeta = swimmer;
+    logStatus('Informe armado localmente desde marks','muted', state.debug ? `${meta?.status || ''} ${meta?.url || ''}` : undefined);
+    refreshEventosFromState({ skipResumen: true });
+
+    if (opts.fromCache) {
+      updateLoadingStatus('Mostrando datos en cache', 'Actualizando en segundo plano...');
+    }
+
+    if (!state.currentMarks.length) {
+      setMsg('msgReport','No hay eventos registrados para este nadador.','msg');
+      logStatus('Informe sin eventos','muted');
+      return;
+    }
+
+    poblarFiltroSeasonAge(state.currentMarks);
+    poblarFiltroEstilo(currentEventos);
+    renderTabla();
+    renderResumen();
+
+    setMsg('msgReport','', 'msg');
+    logStatus(opts.fromCache ? 'Informe desde cache listo.' : 'Informe generado.','ok', state.debug ? `${meta?.status || ''} :: ${meta?.url || ''} :: ${(meta?.body || '').slice(0,200)}` : undefined);
+  }
+
+  function cancelarCargaManual() {
+    if (currentReportAbortController) {
+      currentReportAbortController.abort('manual');
+      logStatus('Carga cancelada por el usuario','muted');
+      setMsg('msgReport','Carga cancelada.','msg');
+      stopLoadingUI();
+      setLoadingReport(false);
+    }
+  }
+
+  function reintentarCargaManual() {
+    if (!state.selectedSwimmerId) {
+      setMsg('msgReport','Seleccioná un nadador para reintentar.','msg error');
+      return;
+    }
+    cargarInforme(state.selectedSwimmerId);
+  }
+
+  function poblarFiltroEstilo(eventos) {
+    const select = $('filtroEstilo');
+    if (!select) return;
+    const estilosSet = new Set();
+    eventos.forEach(ev => estilosSet.add(ev.estilo));
+    const estilos = Array.from(estilosSet).sort();
+    select.innerHTML = '<option value="todos">Todos</option>';
+    estilos.forEach(est => {
+      const opt = document.createElement('option');
+      opt.value = est;
+      opt.textContent = est;
+      select.appendChild(opt);
+    });
+  }
+
+  function poblarFiltroSeasonAge(marks = []) {
+    const selSeason = $('filtroSeason');
+    const selAge = $('filtroEdad');
+    if (!selSeason || !selAge) return;
+    const seasons = Array.from(new Set(marks.map(m => m.season_year).filter(v => v != null))).sort();
+    const ages = Array.from(new Set(marks.map(m => m.age_chip).filter(v => v != null))).sort((a,b) => a-b);
+    selSeason.innerHTML = '<option value="todos">Todos</option>';
+    seasons.forEach(se => {
+      const opt = document.createElement('option');
+      opt.value = se;
+      opt.textContent = se;
+      selSeason.appendChild(opt);
+    });
+    selAge.innerHTML = '<option value="todos">Todas</option>';
+    ages.forEach(age => {
+      const opt = document.createElement('option');
+      opt.value = age;
+      opt.textContent = age;
+      selAge.appendChild(opt);
+    });
+  }
+
+  function setResultCount(eventosCount = 0, marksCount = 0) {
+    const el = $('resultCount');
+    if (!el) return;
+    el.textContent = `${eventosCount} eventos / ${marksCount} marcas aplicando filtros`;
+  }
+
+  function refreshEventosFromState(opts = {}) {
+    if (!currentSwimmerMeta) return;
+    const filters = getActiveFilters();
+    const filteredMarks = applyFilters(state.currentMarks || [], filters);
+    const eventos = buildProjectionReport(currentSwimmerMeta, filteredMarks);
+    currentEventos = eventos;
+    setResultCount(eventos.length, filteredMarks.length);
+    if (!opts.skipResumen) {
+      renderResumen();
+    }
+  }
+
+  function renderResumen() {
+    const summaryRow = $('summaryRow');
+    if (!summaryRow) return;
+    const eventos = currentEventos || [];
+    let total = eventos.length;
+    let cAA = 0, cA = 0, cAR = 0, cNone = 0;
+
+    eventos.forEach(ev => {
+      if (ev.nivel === 'AA') cAA++;
+      else if (ev.nivel === 'A') cA++;
+      else if (ev.nivel === 'AR') cAR++;
+      else cNone++;
+    });
+
+    summaryRow.innerHTML = `
+      <span class="summary-pill">Pruebas analizadas: <strong>${total}</strong></span>
+      <span class="summary-pill">AA: <strong>${cAA}</strong></span>
+      <span class="summary-pill">A: <strong>${cA}</strong></span>
+      <span class="summary-pill">AR: <strong>${cAR}</strong></span>
+      <span class="summary-pill">Sin corte: <strong>${cNone}</strong></span>
+    `;
+  }
+
+  function renderTabla() {
+    refreshEventosFromState({ skipResumen: true });
+    const tableWrapper = $('tableWrapper');
+    if (!tableWrapper) return;
+    const eventos = currentEventos || [];
+    if (eventos.length === 0) {
+      tableWrapper.innerHTML = '';
+      return;
+    }
+
+    const filtroEstilo = $('filtroEstilo')?.value || 'todos';
+    const filtroNivel = $('filtroNivel')?.value || 'todos';
+    const soloConUSA = !!$('chkSoloConUSA')?.checked;
+
+    let filtrados = eventos.filter(ev => {
+      if (filtroEstilo !== 'todos' && ev.estilo !== filtroEstilo) return false;
+      if (filtroNivel === 'AA' && ev.nivel !== 'AA') return false;
+      if (filtroNivel === 'A' && ev.nivel !== 'A') return false;
+      if (filtroNivel === 'AR' && ev.nivel !== 'AR') return false;
+      if (filtroNivel === 'sin' && (ev.nivel === 'AA' || ev.nivel === 'A' || ev.nivel === 'AR')) return false;
+      if (soloConUSA) {
+        const usa = ev.usa || {};
+        if (usa.A_s == null && usa.AA_s == null) return false;
+      }
+      return true;
+    });
+
+    filtrados.sort((a,b) => {
+      if (a.distancia_m !== b.distancia_m) return a.distancia_m - b.distancia_m;
+      if (a.estilo < b.estilo) return -1;
+      if (a.estilo > b.estilo) return 1;
+      return 0;
+    });
+
+    let html = '<table>';
+    html += `
+      <thead>
+        <tr>
+          <th>Prueba</th>
+          <th>Mejor marca<br>(LCM)</th>
+          <th>Origen</th>
+          <th>CADDA mín.</th>
+          <th>Δ CADDA<br>(s / %)</th>
+          <th>USA A</th>
+          <th>Δ A<br>(s / %)</th>
+          <th>USA AA</th>
+          <th>Δ AA<br>(s / %)</th>
+          <th>Nivel</th>
+        </tr>
+      </thead>
+      <tbody>
+    `;
+
+    filtrados.forEach(ev => {
+      const prueba = ev.prueba || (ev.estilo + ' ' + ev.distancia_m + 'm');
+      const hasEquiv = !!(ev.equiv_lcm_str && ev.comparacion_curso === 'LCM');
+      const marcaStr = hasEquiv ? (ev.equiv_lcm_str || '') : (ev.mejor_tiempo_str || '');
+      const subStr = hasEquiv ? `${(ev.mejor_tiempo_str||'')} ${(ev.curso||'')}`.trim() : '';
+      const marcaHTML = subStr ? `<div class="time-main">${marcaStr}<span class="time-sub-inline">(${subStr})</span></div>` : `<div class="time-main">${marcaStr}</div>`;
+      const origen = ev.origen || ev.origen_marca || '';
+      const caddaStr = ev.cadda && ev.cadda.tiempo_str ? ev.cadda.tiempo_str : '';
+
+      const bC_s = ev.cadda && ev.cadda.brecha_s;
+      const bC_pct = ev.cadda && ev.cadda.brecha_pct;
+      const caddaBrechaHTML = formatBrecha(bC_s, bC_pct);
+
+      const usaA = ev.usa ? ev.usa.A_str : '';
+      const bA_s = ev.usa ? ev.usa.A_brecha_s : null;
+      const bA_pct = ev.usa ? ev.usa.A_brecha_pct : null;
+      const usaABrechaHTML = formatBrecha(bA_s, bA_pct);
+
+      const usaAA = ev.usa ? ev.usa.AA_str : '';
+      const bAA_s = ev.usa ? ev.usa.AA_brecha_s : null;
+      const bAA_pct = ev.usa ? ev.usa.AA_brecha_pct : null;
+      const usaAABrechaHTML = formatBrecha(bAA_s, bAA_pct);
+
+      const nivelChip = formatNivelChip(ev.nivel, ev.trafficLight);
+
+      html += `
+        <tr>
+          <td>${prueba}</td>
+          <td class="time-cell">${marcaHTML}</td>
+          <td><span class="pill" title="${escapeHtml(origen || '—')}">${origen || '—'}</span></td>
+          <td>${caddaStr}</td>
+          <td>${caddaBrechaHTML}</td>
+          <td>${usaA}</td>
+          <td>${usaABrechaHTML}</td>
+          <td>${usaAA}</td>
+          <td>${usaAABrechaHTML}</td>
+          <td>${nivelChip}</td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table>';
+    tableWrapper.innerHTML = html;
+    renderResumen();
+  }
+
+  function formatBrecha(diff_s, diff_pct) {
+    if (diff_s == null || isNaN(diff_s)) return '';
+    const cls = diff_s <= 0 ? 'brecha-neg' : 'brecha-pos';
+    const sign = diff_s > 0 ? '+' : '';
+    const pctSign = diff_pct > 0 ? '+' : '';
+    return `<span class="${cls}">${sign}${diff_s.toFixed(2)} s<br>${pctSign}${diff_pct.toFixed(2)}%</span>`;
+  }
+
+  function formatNivelChip(nivel, trafficLight) {
+    const tl = trafficLight ? ` ${trafficLight}` : '';
+    if (!nivel || nivel === '—') {
+      return `<span class="chip chip-none${tl}">—</span>`;
+    }
+    if (nivel === 'AA') return `<span class="chip chip-AA${tl}">AA</span>`;
+    if (nivel === 'A') return `<span class="chip chip-A${tl}">A</span>`;
+    if (nivel === 'AR') return `<span class="chip chip-AR${tl}">AR</span>`;
+    return `<span class="chip chip-none${tl}">${nivel}</span>`;
+  }
+
+  function getTrafficLight({ brecha_s, brecha_pct, distancia_m }) {
+    const nearSeconds = distancia_m >= 400 ? 3 : 1.5;
+    if (brecha_s != null && brecha_s <= 0) return 'traffic-green';
+    if (brecha_pct != null && brecha_pct <= 0) return 'traffic-green';
+    if ((brecha_pct != null && brecha_pct <= 3) || (brecha_s != null && brecha_s <= nearSeconds)) return 'traffic-yellow';
+    return 'traffic-red';
+  }
+
+  function selectBrechaSeconds(ev) {
+    return ev?.usa?.AA_brecha_s ?? ev?.usa?.A_brecha_s ?? ev?.cadda?.brecha_s ?? null;
+  }
+
+  function selectBrechaPct(ev) {
+    return ev?.usa?.AA_brecha_pct ?? ev?.usa?.A_brecha_pct ?? ev?.cadda?.brecha_pct ?? null;
+  }
+
+  function buildProjectionReport(swimmer, marks = []) {
+    if (!Array.isArray(marks) || marks.length === 0) return [];
+    const grouped = new Map();
+
+    marks.forEach(mark => {
+      if (!mark) return;
+      const estilo = mark.estilo || mark.stroke;
+      const distancia_m = Number(mark.distancia_m ?? mark.distance_m ?? mark.distancia);
+      const curso = (mark.curso || '').toUpperCase();
+      if (!estilo || !distancia_m || !curso) return;
+
+      const comparacionCurso = (mark.comparacion_curso || mark.comparacionCurso || mark.comparacion || mark.comparacion_curso_target || 'LCM');
+      const baseTime = calcularBaseTiempo({
+        ...mark,
+        mejor_tiempo_s: mark.tiempo_s ?? mark.mejor_tiempo_s,
+        equiv_lcm_s: mark.equiv_lcm_s ?? mark.equiv_lcm,
+        comparacion_curso: comparacionCurso
+      });
+
+      const key = `${estilo}-${distancia_m}-${curso}`;
+      const current = grouped.get(key);
+      if (!current || (baseTime != null && (current.baseTime == null || baseTime < current.baseTime))) {
+        grouped.set(key, { mark, baseTime, comparacionCurso });
+      }
+    });
+
+    const eventos = [];
+    grouped.forEach(({ mark, comparacionCurso }) => {
+      const ev = {
+        estilo: mark.estilo,
+        distancia_m: Number(mark.distancia_m),
+        curso: (mark.curso || '').toUpperCase(),
+        comparacion_curso: (comparacionCurso || 'LCM').toUpperCase(),
+        prueba: mark.prueba || `${mark.estilo} ${mark.distancia_m}m`,
+        mejor_tiempo_s: mark.tiempo_s ?? mark.mejor_tiempo_s ?? null,
+        mejor_tiempo_str: mark.tiempo_str || mark.tiempo_raw || '',
+        origen: mark.origen || mark.origen_marca || mark.lugar_evento || mark.tipo_toma || '',
+        origen_marca: mark.origen_marca || mark.lugar_evento || mark.tipo_toma || '',
+        equiv_lcm_s: mark.equiv_lcm_s ?? mark.equiv_lcm ?? null,
+        equiv_lcm_str: mark.equiv_lcm_str || null,
+        cadda: mark.cadda ? { ...mark.cadda } : undefined,
+        usa: mark.usa ? { ...mark.usa } : undefined
+      };
+
+      const normalizado = normalizarEvento(ev);
+      normalizado.trafficLight = getTrafficLight({
+        brecha_s: selectBrechaSeconds(normalizado),
+        brecha_pct: selectBrechaPct(normalizado),
+        distancia_m: normalizado.distancia_m
+      });
+      eventos.push(normalizado);
+    });
+
+    eventos.sort((a,b) => {
+      if (a.distancia_m !== b.distancia_m) return a.distancia_m - b.distancia_m;
+      if (a.estilo < b.estilo) return -1;
+      if (a.estilo > b.estilo) return 1;
+      return 0;
+    });
+
+    return eventos;
+  }
+
+  function exportarCSV() {
+    const eventos = currentEventos || [];
+    if (eventos.length === 0) {
+      setMsg('msgReport','No hay datos para exportar.','msg error');
+      logStatus('Exportación cancelada: sin datos','error');
+      return;
+    }
+
+    const header = [
+      'Prueba','MejorMarca_s','MejorMarca_str','Origen','CADDA_s','CADDA_str','BrechaCADDA_s','BrechaCADDA_%',
+      'USA_A_s','USA_A_str','BrechaA_s','BrechaA_%','USA_AA_s','USA_AA_str','BrechaAA_s','BrechaAA_%','Nivel'
+    ];
+
+    const rows = eventos.map(ev => [
+      ev.prueba || (ev.estilo + ' ' + ev.distancia_m + 'm'),
+      ev.mejor_tiempo_s ?? '',
+      ev.mejor_tiempo_str ?? '',
+      (ev.origen ?? ev.origen_marca ?? ''),
+      ev.cadda?.tiempo_s ?? '',
+      ev.cadda?.tiempo_str ?? '',
+      ev.cadda?.brecha_s ?? '',
+      ev.cadda?.brecha_pct ?? '',
+      ev.usa?.A_s ?? '',
+      ev.usa?.A_str ?? '',
+      ev.usa?.A_brecha_s ?? '',
+      ev.usa?.A_brecha_pct ?? '',
+      ev.usa?.AA_s ?? '',
+      ev.usa?.AA_str ?? '',
+      ev.usa?.AA_brecha_s ?? '',
+      ev.usa?.AA_brecha_pct ?? '',
+      ev.nivel ?? ''
+    ]);
+
+    let csvContent = header.join(',') + '\n';
+    rows.forEach(r => {
+      csvContent += r.map(v => {
+        const s = String(v);
+        if (s.includes(',') || s.includes('"')) return '"' + s.replace(/"/g,'""') + '"';
+        return s;
+      }).join(',') + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const nombre = currentSwimmerMeta ? currentSwimmerMeta.nombre.replace(/\s+/g,'_') : 'nadador';
+    a.href = url;
+    a.download = `MDV_SWIM_Report_${nombre}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    logStatus('CSV exportado','ok');
+  }
+
+  function parseNum(v){ const n = Number(v); return isNaN(n) ? null : n; }
+
+  function calcularBaseTiempo(ev){
+    const equiv = parseNum(ev.equiv_lcm_s);
+    const tiempo = parseNum(ev.mejor_tiempo_s ?? ev.tiempo_s);
+    if (equiv != null) return equiv;
+    if (tiempo == null) return null;
+    const curso = (ev.curso || '').toUpperCase();
+    const comparacion = (ev.comparacion_curso || '').toUpperCase();
+    if (curso === 'SCM' && comparacion === 'LCM') return tiempo * 1.02;
+    return tiempo;
+  }
+
+  function determinarNivel(ev, base){
+    if (ev.nivel && ev.nivel !== '—') return ev.nivel;
+    if (base == null) return '—';
+    const usa = ev.usa || {};
+    if (usa.AA_s != null && base <= usa.AA_s) return 'AA';
+    if (usa.A_s != null && base <= usa.A_s) return 'A';
+    const cadda = ev.cadda || {};
+    if (cadda.tiempo_s != null && base <= cadda.tiempo_s) return ev.nivel || 'AR';
+    return '—';
+  }
+
+  function normalizarEvento(ev){
+    const m = { ...ev, cadda: ev.cadda ? { ...ev.cadda } : {}, usa: ev.usa ? { ...ev.usa } : {} };
+    const base = calcularBaseTiempo(m);
+
+    if (m.cadda && m.cadda.tiempo_s != null) {
+      if (m.cadda.brecha_s == null && base != null) m.cadda.brecha_s = base - m.cadda.tiempo_s;
+      if (m.cadda.brecha_pct == null && m.cadda.brecha_s != null) m.cadda.brecha_pct = (m.cadda.brecha_s / m.cadda.tiempo_s) * 100;
+    }
+
+    if (m.usa) {
+      if (m.usa.A_s != null && m.usa.A_brecha_s == null && base != null) m.usa.A_brecha_s = base - m.usa.A_s;
+      if (m.usa.AA_s != null && m.usa.AA_brecha_s == null && base != null) m.usa.AA_brecha_s = base - m.usa.AA_s;
+      if (m.usa.A_brecha_pct == null && m.usa.A_brecha_s != null && m.usa.A_s != null) m.usa.A_brecha_pct = (m.usa.A_brecha_s / m.usa.A_s) * 100;
+      if (m.usa.AA_brecha_pct == null && m.usa.AA_brecha_s != null && m.usa.AA_s != null) m.usa.AA_brecha_pct = (m.usa.AA_brecha_s / m.usa.AA_s) * 100;
+    }
+
+    m.nivel = determinarNivel(m, base);
+    return m;
+  }
+
+  async function probarConexion() {
+    if (state.isLoadingSwimmers || state.isLoadingReport || state.isTestingConnection) { logStatus('Prueba ignorada: carga en curso','muted'); return; }
+    const url = $('web_app_url')?.value?.trim();
+    if (!url) {
+      setMsg('msgConfig','Falta URL Web App.','msg error');
+      return;
+    }
+    setTestingConnection(true);
+    logStatus('Probando conexión...','muted');
+    try {
+      const fullUrl = buildUrl(url, 'status');
+      const res = await fetchWithTimeout(fullUrl, {}, getTimeoutMs());
+      const text = await res.text();
+      const data = parseJsonSafe(text) || text;
+      logStatus('Conexión OK','ok', state.debug ? `${res.status} ${fullUrl} ${String(text).slice(0,200)}` : undefined);
+      setMsg('msgConfig', 'Status: ' + JSON.stringify(data), 'msg');
+    } catch (err) {
+      logStatus('Fallo prueba de conexión: ' + err,'error');
+      setMsg('msgConfig','Error en prueba: ' + err,'msg error');
+    } finally {
+      setTestingConnection(false);
+    }
+  }
+
+  // --- Init ---
+  (function init() {
+    restoreCfgToFields();
+    ['web_app_url','coach_id','spreadsheet_id','chkDebug','timeout_ms'].forEach(id => {
+      const el = $(id);
+      if (el) el.addEventListener('change', () => { saveCfgFromFields(); state.debug = !!$('chkDebug')?.checked; });
+      if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') el.addEventListener('blur', saveCfgFromFields);
+    });
+    const chk = $('chkAutoRefresh');
+    if (chk) chk.addEventListener('change', () => { saveCfgFromFields(); startAutoRefresh(); });
+
+    const btnCancel = $('btnCancelLoad');
+    if (btnCancel) btnCancel.addEventListener('click', cancelarCargaManual);
+    const btnRetry = $('btnRetryLoad');
+    if (btnRetry) btnRetry.addEventListener('click', reintentarCargaManual);
+
+    const cfg = getCfg();
+    if (cfg.webAppUrl && cfg.coachId) {
+      cargarNadadores({ silent: true, keepSelection: true });
+    }
+    startAutoRefresh();
+    setLastUpdated();
+  })();
+</script>
+
+</body>
+</html>
