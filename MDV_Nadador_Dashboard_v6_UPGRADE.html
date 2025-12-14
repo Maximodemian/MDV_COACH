@@ -1,0 +1,1853 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>MDV Swim · Nadador</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f3f4f6;
+      color: #111827;
+    }
+    header {
+      background: linear-gradient(90deg,#1e3a8a,#2563eb);
+      color: white;
+      padding: 0.9rem 1.2rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    header h1 span.logo {
+      display:inline-flex;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    header small {
+      font-size: 0.72rem;
+      opacity: 0.9;
+    }
+    main {
+      padding: 0.8rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 3px 8px rgba(15,23,42,0.12);
+      padding: 0.8rem 0.9rem;
+      margin-bottom: 0.9rem;
+    }
+    .card h2 {
+      margin-top: 0;
+      font-size: 1rem;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .card h2 span.dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: #2563eb;
+    }
+    label {
+      display: block;
+      font-size: 0.78rem;
+      margin-top: 0.45rem;
+      color: #374151;
+    }
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.35rem 0.45rem;
+      margin-top: 0.15rem;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-size: 0.8rem;
+      background: #f9fafb;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 1px rgba(37,99,235,0.2);
+      background: white;
+    }
+    button {
+      border: none;
+      cursor: pointer;
+      font-size: 0.8rem;
+      border-radius: 999px;
+      padding: 0.45rem 0.9rem;
+      margin-top: 0.6rem;
+      background: #2563eb;
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    button.secondary { background: #6b7280; }
+    button.ghost { background: #e5e7eb; color: #111827; }
+    button:disabled { opacity: 0.6; cursor: default; }
+    button span.icon { font-size: 0.85rem; }
+    .msg {
+      font-size: 0.75rem;
+      margin-top: 0.3rem;
+      min-height: 1rem;
+    }
+    .msg.error { color: #b91c1c; }
+    .msg.ok { color: #15803d; }
+
+    .status-panel {
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      color: #312e81;
+      padding: 0.45rem 0.65rem;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      margin-bottom: 0.8rem;
+      min-height: 1.2rem;
+    }
+    .status-panel.error { background: #fef2f2; border-color: #fecdd3; color: #991b1b; }
+    .status-panel.ok { background: #ecfdf3; border-color: #bbf7d0; color: #14532d; }
+
+    .info-toggle {
+      font-size: 0.75rem;
+      color: #2563eb;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      cursor: pointer;
+      margin-top: 0.3rem;
+    }
+    .info-body {
+      font-size: 0.75rem;
+      color: #4b5563;
+      margin-top: 0.3rem;
+      display: none;
+    }
+
+    .legend {
+      font-size: 0.72rem;
+      color: #6b7280;
+      margin-top: 0.4rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .legend span.box {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    .marks-list {
+      list-style: none;
+      padding: 0;
+      margin: 0.4rem 0 0;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .mark-item {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 0.35rem 0.2rem;
+      font-size: 0.8rem;
+    }
+    .mark-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.3rem;
+    }
+    .mark-main {
+      font-weight: 600;
+    }
+    .tag {
+      display: inline-flex;
+      font-size: 0.72rem;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      background: #e5e7eb;
+      color: #374151;
+      margin-left: 0.25rem;
+    }
+    .mark-sub {
+      font-size: 0.72rem;
+      color: #6b7280;
+      margin-top: 0.15rem;
+    }
+    .mark-footer {
+      font-size: 0.72rem;
+      margin-top: 0.25rem;
+      color: #111827;
+    }
+    .mark-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.3rem;
+    }
+    .badge-nivel {
+      display: inline-flex;
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .badge-AA { background:#1d4ed8; color:white; }
+    .badge-A { background:#16a34a; color:white; }
+    .badge-AR { background:#eab308; color:#111827; }
+    .badge-none { background:#e5e7eb; color:#374151; }
+    .brecha-pos { color:#b91c1c; }
+    .brecha-neg { color:#15803d; }
+
+    .chips-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.2rem;
+    }
+    .chip-small {
+      font-size: 0.7rem;
+      padding: 0.05rem 0.45rem;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .inline-row {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .inline-row > div {
+      flex: 1 1 120px;
+    }
+
+    .filters-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.4rem;
+    }
+    .filters-row > div {
+      flex: 1 1 130px;
+      min-width: 150px;
+    }
+    .inline-checkbox {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      color: #374151;
+    }
+    .inline-checkbox input { width: auto; }
+
+    .profile-meta {
+      margin-top: 0.4rem;
+      font-size: 0.78rem;
+      color: #4b5563;
+    }
+    .profile-meta span.badge {
+      display: inline-block;
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      background: #e5e7eb;
+      margin-right: 0.3rem;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>
+    <span class="logo">MDV</span>
+    Swim · Panel del Nadador
+  </h1>
+  <small>Registrá tus tiempos y mirá cómo se comparan con niveles nacionales e internacionales.</small>
+</header>
+<main>
+
+  <div id="statusPanel" class="status-panel"></div>
+
+  <!-- PERFIL NADADOR -->
+  <section class="card">
+    <h2><span class="dot"></span> Mi perfil</h2>
+    <label>URL Web App (Coach)
+      <input id="webapp_url" type="text" placeholder="https://script.google.com/macros/s/XXXX/exec">
+    </label>
+    <label>Coach ID
+      <input id="coach_id" type="text" placeholder="COACH_MDV_001">
+    </label>
+    <label>Swimmer ID (si ya lo tenés)
+      <div class="inline-row" style="align-items:flex-end;">
+        <div style="flex:1 1 200px;">
+          <input id="swimmer_id" type="text" placeholder="se puede generar automático">
+        </div>
+        <div>
+          <button id="btnCargarPerfil" type="button" onclick="cargarPerfil()">
+            <span class="icon">🔄</span> Sincronizar perfil
+          </button>
+        </div>
+        <div>
+          <button id="btnLimpiar" type="button" class="ghost" onclick="limpiarDatos()">
+            <span class="icon">🧹</span> Limpiar datos
+          </button>
+        </div>
+      </div>
+    </label>
+    <div id="swimmerNotice" class="msg"></div>
+    <label>Nombre y apellido
+      <input id="nombre" type="text">
+    </label>
+    <div class="inline-row">
+      <div>
+        <label>Fecha de nacimiento
+          <input id="fecha_nac" type="date" oninput="actualizarEdadYCategoria()">
+        </label>
+      </div>
+      <div>
+        <label>Género
+          <select id="genero">
+            <option value="F">Femenino</option>
+            <option value="M">Masculino</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="inline-row">
+      <div>
+        <label>Altura (cm)
+          <input id="altura_cm" type="number">
+        </label>
+      </div>
+      <div>
+        <label>Peso (kg)
+          <input id="peso_kg" type="number">
+        </label>
+      </div>
+      <div>
+        <label>FC reposo (lpm)
+          <input id="fc_reposo" type="number">
+        </label>
+      </div>
+    </div>
+
+    <div class="profile-meta" id="profileMeta">
+      <!-- aquí se mostrará edad y categoría calculadas -->
+    </div>
+
+    <label class="inline-checkbox" style="margin-top:0.4rem;">
+      <input type="checkbox" id="allowEditMarksToggle" />
+      <span>Habilitar edición/borrado de marcas (si tu licencia lo permite)</span>
+    </label>
+
+    <button id="btnGuardarPerfil" onclick="guardarPerfil()">
+      <span class="icon">💾</span> Guardar perfil
+    </button>
+    <div id="msgPerfil" class="msg"></div>
+  </section>
+
+  <!-- PARÁMETROS DE REFERENCIA -->
+  <section class="card">
+    <h2><span class="dot"></span> Referencias nacionales e internacionales</h2>
+    <div class="legend">
+      <span><span class="box" style="background:#1d4ed8;"></span> AA · nivel élite USA para tu edad</span>
+      <span><span class="box" style="background:#16a34a;"></span> A · nivel alto USA para tu edad</span>
+      <span><span class="box" style="background:#eab308;"></span> AR · apto ranking / mínimas nacionales</span>
+      <span><span class="box" style="background:#e5e7eb;"></span> Sin corte aún · todavía en camino</span>
+    </div>
+    <div class="info-toggle" onclick="toggleInfo()">
+      <span>ℹ️</span> <span>¿Cómo se leen estos niveles?</span>
+    </div>
+    <div id="infoBody" class="info-body">
+      <p>
+        Cada tiempo que cargás se compara con tablas de referencia:
+      </p>
+      <ul style="margin:0.2rem 0 0.1rem 1rem; padding-left:0.9rem;">
+        <li><strong>CADDA / mínimas nacionales:</strong> marcan el nivel para entrar a campeonatos argentinos o rankings oficiales.</li>
+        <li><strong>USA Swimming (A / AA):</strong> tiempos de desarrollo por edad pensados para el alto rendimiento.</li>
+      </ul>
+      <p>
+        Si tu tiempo ya es mejor que un corte, la brecha se ve en <span style="color:#15803d;font-weight:600;">verde (brecha negativa)</span>.
+        Si todavía falta para llegar, se ve en <span style="color:#b91c1c;font-weight:600;">rojo (brecha positiva)</span>.
+      </p>
+      <p>
+        La idea no es compararte con otros, sino usar estas referencias para seguir mejorando tus propias marcas paso a paso.
+      </p>
+    </div>
+  </section>
+
+  <!-- NUEVO REGISTRO -->
+  <section class="card">
+    <h2><span class="dot"></span> Nuevo registro de marca</h2>
+    <div class="inline-row">
+      <div>
+        <label>Fecha
+          <input id="fecha_mark" type="date">
+        </label>
+      </div>
+      <div>
+        <label>Lugar / Evento
+          <input id="lugar_evento" type="text" placeholder="Torneo Apertura, Parque Roca...">
+        </label>
+      </div>
+    </div>
+    <div class="chips-row" id="chipsMetaMarca" style="margin-top:0.35rem;"></div>
+    <div class="inline-row">
+      <div>
+        <label>Curso (tipo de pileta)
+          <select id="curso">
+            <option value="LCM">LCM · 50 m (olímpica)</option>
+            <option value="SCM">SCM · 25 m (semiolímpica)</option>
+            <option value="SCY">SCY · 25 yd</option>
+          </select>
+        </label>
+      </div>
+      <div>
+        <label>Tipo de toma
+          <select id="tipo_toma">
+            <option value="Competencia">Competencia</option>
+            <option value="Test">Test</option>
+            <option value="Entrenamiento">Entrenamiento</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="inline-row">
+      <div>
+        <label>Estilo
+          <select id="estilo">
+            <option value="Freestyle">Libre</option>
+            <option value="Backstroke">Espalda</option>
+            <option value="Breaststroke">Pecho</option>
+            <option value="Butterfly">Mariposa</option>
+            <option value="IM">Combinado</option>
+          </select>
+        </label>
+      </div>
+      <div>
+        <label>Distancia (m)
+          <input id="distancia_m" type="number" placeholder="50, 100, 200...">
+        </label>
+      </div>
+      <div>
+        <label>Carril
+          <input id="carril" type="text">
+        </label>
+      </div>
+    </div>
+    <label>Tiempo (m:ss.cc o ss.cc)
+      <input id="tiempo_raw" type="text" placeholder="0:34.82 o 34.82">
+    </label>
+
+    <button id="btnGuardarMarca" onclick="guardarMarca()">
+      <span class="icon">⏱️</span> Guardar marca
+    </button>
+    <button id="btnActualizarMarcas" class="secondary" onclick="cargarMisMarcas()">
+      <span class="icon">📈</span> Actualizar mis marcas
+    </button>
+    <div id="msgMark" class="msg"></div>
+  </section>
+
+  <!-- MARCAS PERSONALES + LEYENDA POR REGISTRO -->
+  <section class="card">
+    <h2><span class="dot"></span> Mis marcas y progreso</h2>
+    <p style="font-size:0.75rem;color:#6b7280;margin-top:0;">
+      Cada registro muestra el color de tu nivel actual y una frase que te orienta cuán cerca estás del siguiente escalón.
+    </p>
+    <div class="filters-row">
+      <div>
+        <label for="filtroEstilo">Filtrar por estilo</label>
+        <select id="filtroEstilo" onchange="aplicarFiltrosYRender()">
+          <option value="todos">Todos</option>
+        </select>
+      </div>
+      <div>
+        <label for="filtroNivel">Filtrar por nivel</label>
+        <select id="filtroNivel" onchange="aplicarFiltrosYRender()">
+          <option value="todos">Todos</option>
+          <option value="AA">Solo AA</option>
+          <option value="A">Solo A</option>
+          <option value="AR">Solo AR</option>
+          <option value="sin">Sin corte</option>
+        </select>
+      </div>
+      <div>
+        <label for="filtroSeason">Año (season)</label>
+        <select id="filtroSeason" onchange="aplicarFiltrosYRender()">
+          <option value="todos">Todos</option>
+        </select>
+      </div>
+      <div>
+        <label for="filtroEdad">Edad (chip)</label>
+        <select id="filtroEdad" onchange="aplicarFiltrosYRender()">
+          <option value="todos">Todas</option>
+        </select>
+      </div>
+      <div class="inline-checkbox">
+        <input type="checkbox" id="chkSoloConUSA" onchange="aplicarFiltrosYRender()">
+        <label for="chkSoloConUSA">Solo con estándar USA cargado</label>
+      </div>
+      <div class="inline-checkbox">
+        <input type="checkbox" id="chkSoloConCADDA" onchange="aplicarFiltrosYRender()">
+        <label for="chkSoloConCADDA">Solo con mínima CADDA cargada</label>
+      </div>
+      <div class="inline-checkbox">
+        <input type="checkbox" id="chkIncluirEliminadas" onchange="aplicarFiltrosYRender()">
+        <label for="chkIncluirEliminadas">Incluir eliminadas</label>
+      </div>
+    </div>
+    <div id="resultCount" class="msg" style="margin-top:0.2rem;"></div>
+    <ul id="marksList" class="marks-list"></ul>
+    <div id="msgMarks" class="msg"></div>
+  </section>
+
+</main>
+
+<script>
+  const STORAGE_KEYS = {
+    config: 'mdv_swimmer_config_v3',
+    profile: 'mdv_swimmer_profile_v3'
+  };
+
+  const state = {
+    isLoading: false,
+    autoInterval: null,
+    currentRequest: null,
+    lastConfig: {},
+    currentMarks: [],
+    currentSwimmer: null,
+    editingMarkId: null
+  };
+
+  const standardsCache = {};
+
+  function $(...ids) {
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function toggleInfo() {
+    const body = $('infoBody');
+    if (!body) return;
+    body.style.display = body.style.display === 'block' ? 'none' : 'block';
+  }
+
+  function setStatus(text, type = '') {
+    const panel = $('statusPanel');
+    if (!panel) return;
+    panel.textContent = text || '';
+    panel.className = `status-panel ${type}`.trim();
+  }
+
+  function calcularEdad(fecha_nac) {
+    if (!fecha_nac) return null;
+    const hoy = new Date();
+    const nac = new Date(fecha_nac);
+    if (isNaN(nac.getTime())) return null;
+    let edad = hoy.getFullYear() - nac.getFullYear();
+    const m = hoy.getMonth() - nac.getMonth();
+    if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) {
+      edad--;
+    }
+    return edad;
+  }
+
+  function computeAgeChip(dobInput, markDate) {
+    if (!dobInput || !markDate) return null;
+    const dob = dobInput instanceof Date ? dobInput : new Date(dobInput);
+    const mDate = markDate instanceof Date ? markDate : new Date(markDate);
+    if (isNaN(dob) || isNaN(mDate)) return null;
+    let age = mDate.getFullYear() - dob.getFullYear();
+    const monthMark = mDate.getMonth();
+    const dayMark = mDate.getDate();
+    if (monthMark < dob.getMonth() || (monthMark === dob.getMonth() && dayMark < dob.getDate())) {
+      age--;
+    }
+    return age;
+  }
+
+  function deriveSeasonYear(markDate) {
+    const d = markDate instanceof Date ? markDate : new Date(markDate);
+    if (isNaN(d)) return null;
+    return d.getFullYear();
+  }
+
+  function toDateInputValue(value) {
+    if (!value) return '';
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      const year = value.getFullYear();
+      const month = (value.getMonth() + 1).toString().padStart(2, '0');
+      const day = value.getDate().toString().padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    if (typeof value === 'string') {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+      if (value.includes('T')) return value.slice(0, 10);
+      const parsed = new Date(value);
+      if (!isNaN(parsed.getTime())) return toDateInputValue(parsed);
+    }
+    return '';
+  }
+
+  function formatErr(err) {
+    if (!err) return 'desconocido';
+    const str = String(err || '').toLowerCase();
+    if (err === 'timeout' || str.includes('timeout') || str.includes('abort')) return 'timeout';
+    if (err?.message) return err.message;
+    return String(err);
+  }
+
+  function determinarCategoriaCADDA(edad) {
+    if (edad == null) return null;
+    if (edad <= 10) return 'Infantil 1';
+    if (edad <= 12) return 'Infantil 2';
+    return 'Juvenil / Mayor';
+  }
+
+  function actualizarEdadYCategoria() {
+    const fecha_nac = $('fecha_nac')?.value;
+    const meta = $('profileMeta');
+    if (!meta) return;
+    const edad = calcularEdad(fecha_nac);
+    const categoria = determinarCategoriaCADDA(edad);
+
+    if (!edad) {
+      meta.innerHTML = '';
+      return;
+    }
+
+    meta.innerHTML = `
+      <span class="badge">Edad: <strong>${edad}</strong> años</span>
+      ${categoria ? `<span class="badge">Categoría estimada: <strong>${categoria}</strong></span>` : ''}
+    `;
+
+    updateMarkMetaChips();
+  }
+
+  function updateMarkMetaChips() {
+    const chips = $('chipsMetaMarca');
+    if (!chips) return;
+    const fechaMark = $('fecha_mark')?.value;
+    const fechaNac = $('fecha_nac')?.value;
+    const edad = computeAgeChip(fechaNac, fechaMark);
+    const season = deriveSeasonYear(fechaMark);
+    const parts = [];
+    if (season != null) parts.push(`<span class="chip-small">Año: ${season}</span>`);
+    if (edad != null) parts.push(`<span class="chip-small">Edad al momento: ${edad}</span>`);
+    chips.innerHTML = parts.join(' ');
+  }
+
+  function generarSwimmerId(nombre, fecha_nac, coach_id) {
+    const baseNombre = (nombre || '').trim().toUpperCase().replace(/\s+/g, '_');
+    const año = fecha_nac ? fecha_nac.substring(0, 4) : 'XXXX';
+    return `${coach_id || 'COACH'}_${baseNombre}_${año}`;
+  }
+
+  function getWebAppUrl_() {
+    const input = $('webapp_url', 'webappUrl', 'coachWebAppUrl');
+    const v = (input && input.value ? input.value.trim() : '') || '';
+    const cfg = loadConfig();
+    return (v || cfg.webapp_url || localStorage.getItem('mdv_webapp_url') || '').trim();
+  }
+
+  function syncWebAppUrl_() {
+    const v = getWebAppUrl_();
+    if (v) {
+      localStorage.setItem('mdv_webapp_url', v);
+      const cfg = loadConfig();
+      cfg.webapp_url = v;
+      saveConfig(cfg);
+    }
+    return v;
+  }
+
+  function loadConfig() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.config)) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveConfig(cfg) {
+    localStorage.setItem(STORAGE_KEYS.config, JSON.stringify(cfg || {}));
+  }
+
+  function getMergedConfig() {
+    return { ...(state.lastConfig || {}), ...(loadConfig() || {}) };
+  }
+
+  function getConfigValue(...keys) {
+    const cfg = getMergedConfig();
+    for (const key of keys) {
+      if (cfg && cfg[key] != null) return cfg[key];
+    }
+    return null;
+  }
+
+  function canEditMarks() {
+    return !!getConfigValue('allow_swimmer_mark_edit');
+  }
+
+  function updateConfigFromResponse(data) {
+    const cfgCandidate = data?.config || data?.CONFIG || data?.config_general || data?.CONFIG_GENERAL || data?.configuracion;
+    if (cfgCandidate && typeof cfgCandidate === 'object') {
+      state.lastConfig = { ...(state.lastConfig || {}), ...cfgCandidate };
+      const merged = getMergedConfig();
+      saveConfig(merged);
+    }
+  }
+
+  function loadProfileFromStorage() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.profile)) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveProfile(profile) {
+    if (!profile) return;
+    const normalized = { ...profile };
+    if (normalized.fecha_nac) {
+      normalized.fecha_nac = toDateInputValue(normalized.fecha_nac);
+    }
+    localStorage.setItem(STORAGE_KEYS.profile, JSON.stringify(normalized));
+  }
+
+  function fillProfile(profile = {}, { onlyEmpty = false } = {}) {
+    const fields = ['nombre', 'fecha_nac', 'genero', 'altura_cm', 'peso_kg', 'fc_reposo'];
+    fields.forEach((f) => {
+      const el = $(f);
+      if (!el) return;
+      if (onlyEmpty && el.value) return;
+      if (profile[f] != null) {
+        el.value = f === 'fecha_nac' ? toDateInputValue(profile[f]) : profile[f];
+      }
+    });
+    if (!onlyEmpty || !$('coach_id')?.value) {
+      $('coach_id') && ( $('coach_id').value = profile.coach_id || $('coach_id').value );
+    }
+    if (!onlyEmpty || !$('swimmer_id')?.value) {
+      $('swimmer_id') && ( $('swimmer_id').value = profile.swimmer_id || $('swimmer_id').value );
+    }
+    actualizarEdadYCategoria();
+  }
+
+  function persistConfigFromInputs() {
+    const cfg = loadConfig();
+    cfg.webapp_url = $('webapp_url')?.value?.trim() || cfg.webapp_url || '';
+    cfg.coach_id = $('coach_id')?.value?.trim() || cfg.coach_id || '';
+    cfg.swimmer_id = $('swimmer_id')?.value?.trim() || cfg.swimmer_id || '';
+    cfg.allow_swimmer_mark_edit = !!$('allowEditMarksToggle')?.checked;
+    saveConfig(cfg);
+  }
+
+  function limpiarDatos() {
+    localStorage.removeItem(STORAGE_KEYS.config);
+    localStorage.removeItem(STORAGE_KEYS.profile);
+    localStorage.removeItem('mdv_webapp_url');
+    ['webapp_url', 'coach_id', 'swimmer_id', 'nombre', 'fecha_nac', 'altura_cm', 'peso_kg', 'fc_reposo'].forEach((id) => {
+      const el = $(id);
+      if (el) el.value = '';
+    });
+    $('profileMeta') && ( $('profileMeta').innerHTML = '' );
+    setStatus('Datos locales limpiados.', '');
+  }
+
+  function setLoading(isLoading) {
+    state.isLoading = isLoading;
+    const btns = ['btnCargarPerfil', 'btnActualizarMarcas', 'btnGuardarMarca', 'btnGuardarPerfil'];
+    btns.forEach((id) => {
+      const el = $(id);
+      if (el) el.disabled = isLoading;
+    });
+  }
+
+  async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+    const controller = new AbortController();
+    const method = (options?.method || '').toUpperCase();
+    const effectiveTimeout = method === 'POST' ? Math.max(timeoutMs, 25000) : timeoutMs;
+    const timer = setTimeout(() => controller.abort('timeout'), effectiveTimeout);
+    const opts = { ...options, signal: controller.signal };
+    try {
+      const res = await fetch(url, opts);
+      clearTimeout(timer);
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
+  const delay = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function buildGetUrl(action, opts = {}) {
+    const url = syncWebAppUrl_();
+    const coach_id = $('coach_id')?.value?.trim();
+    const swimmer_id = $('swimmer_id')?.value?.trim();
+    if (!url) throw new Error('Falta configurar la URL Web App del coach.');
+    if (!coach_id) throw new Error('Completá Coach ID.');
+    const requireSwimmerId = opts.requireSwimmerId !== false;
+    if (requireSwimmerId && !swimmer_id) throw new Error('Completá Coach ID y Swimmer ID.');
+
+    const params = new URLSearchParams({ action, coach_id });
+    if (requireSwimmerId) params.append('swimmer_id', swimmer_id);
+    if (opts.params) {
+      Object.entries(opts.params).forEach(([k, v]) => {
+        if (v != null) params.append(k, v);
+      });
+    }
+    return `${url}?${params.toString()}`;
+  }
+
+  async function cargarPerfil() {
+    if (state.isLoading) return;
+    setLoading(true);
+    setStatus('Sincronizando perfil...', '');
+    $('msgPerfil') && ( $('msgPerfil').textContent = '' );
+
+    const localProfile = loadProfileFromStorage();
+    if (localProfile && Object.keys(localProfile).length) {
+      fillProfile(localProfile, { onlyEmpty: false });
+      setStatus('Perfil local cargado (sincronizando...)', '');
+    }
+
+    try {
+      const swimmerFromList = await (async () => {
+        try {
+          const urlList = buildGetUrl('get_swimmers', { requireSwimmerId: false });
+          const res = await fetchWithTimeout(urlList, {}, 12000);
+          const data = await res.json();
+          const swimmers = data?.swimmers || [];
+          const currentId = $('swimmer_id')?.value?.trim();
+          if (Array.isArray(swimmers) && currentId) {
+            return swimmers.find((s) => s.swimmer_id === currentId) || null;
+          }
+          return null;
+        } catch (err) {
+          console.warn('get_swimmers fallback to detailed endpoint:', err);
+          return null;
+        }
+      })();
+
+      if (swimmerFromList) {
+        fillProfile(swimmerFromList, { onlyEmpty: false });
+        saveProfile({ ...swimmerFromList });
+        persistConfigFromInputs();
+        setStatus('Perfil sincronizado.', 'ok');
+        $('msgPerfil') && ( $('msgPerfil').textContent = '' );
+        return;
+      }
+
+      const fetchPerfilDetallado = async (retries = 1) => {
+        try {
+          const url = buildGetUrl('get_swimmer_marks_with_context');
+          const res = await fetchWithTimeout(url, {}, 25000);
+          const data = await res.json();
+          updateConfigFromResponse(data);
+          if (data.status !== 'ok' || !data.swimmer) {
+            throw new Error(data.message || 'No se recibió perfil.');
+          }
+          return data.swimmer;
+        } catch (err) {
+          if (retries > 0 && formatErr(err) === 'timeout') {
+            return fetchPerfilDetallado(retries - 1);
+          }
+          throw err;
+        }
+      };
+
+      const swimmer = await fetchPerfilDetallado();
+      fillProfile(swimmer, { onlyEmpty: false });
+      saveProfile({ ...swimmer });
+      persistConfigFromInputs();
+      setStatus('Perfil sincronizado y guardado localmente.', 'ok');
+      $('msgPerfil') && ( $('msgPerfil').textContent = '' );
+    } catch (err) {
+      const friendly = formatErr(err);
+      if (localProfile && Object.keys(localProfile).length) {
+        setStatus(`No se pudo sincronizar (usando datos locales). Motivo: ${friendly}`, '');
+      } else {
+        setStatus(`Error al sincronizar perfil: ${friendly}`, 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function cargarMisMarcas() {
+    if (state.isLoading) return;
+    const msg = $('msgMarks');
+    const list = $('marksList');
+    if (list) list.innerHTML = '';
+    if (msg) { msg.textContent = ''; msg.className = 'msg'; }
+
+    try {
+      const url = buildGetUrl('get_swimmer_marks_with_context');
+      setLoading(true);
+      setStatus('Cargando marcas...', '');
+      state.currentRequest = url;
+      const fetchMarks = async (retries = 1) => {
+        try {
+          const res = await fetchWithTimeout(url, {}, 25000);
+          return await res.json();
+        } catch (err) {
+          if (retries > 0 && formatErr(err) === 'timeout') {
+            return fetchMarks(retries - 1);
+          }
+          throw err;
+        }
+      };
+
+      const data = await fetchMarks(1);
+      if (data.status !== 'ok') {
+        throw new Error(data.message || 'No se pudieron cargar las marcas.');
+      }
+
+      if (data.swimmer) {
+        fillProfile(data.swimmer, { onlyEmpty: true });
+        saveProfile({ ...data.swimmer });
+        persistConfigFromInputs();
+        state.currentSwimmer = data.swimmer;
+      }
+
+      updateConfigFromResponse(data);
+
+      const marksRaw = await Promise.all((data.marks || []).map(normalizarMarca));
+      const marks = annotateMarksWithFlags(marksRaw, state.currentSwimmer);
+      state.currentMarks = marks.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+      poblarFiltros(marks);
+      aplicarFiltrosYRender();
+      
+      if (msg) { msg.textContent = ''; msg.className = 'msg'; }
+      setStatus('Listo.', 'ok');
+    } catch (err) {
+      const friendly = formatErr(err);
+      if (msg) { msg.textContent = 'Error al cargar marcas: ' + friendly; msg.className = 'msg error'; }
+      setStatus('Error: ' + friendly, 'error');
+    } finally {
+      setLoading(false);
+      state.currentRequest = null;
+    }
+  }
+
+  function parseTiempo(valor) {
+    const num = Number(valor);
+    return isNaN(num) ? null : num;
+  }
+
+  function parseTiempoEnSegundos(valor) {
+    if (!valor) return null;
+    const cleaned = String(valor).trim().replace(',', '.');
+    if (!cleaned) return null;
+    if (/^\d+(\.\d+)?$/.test(cleaned)) {
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? null : num;
+    }
+
+    const parts = cleaned.split(':');
+    if (parts.length >= 2) {
+      const segundos = parseFloat(parts.pop());
+      if (isNaN(segundos)) return null;
+      let total = segundos;
+      let multiplier = 60;
+      while (parts.length) {
+        const unidad = parseInt(parts.pop(), 10);
+        if (isNaN(unidad)) return null;
+        total += unidad * multiplier;
+        multiplier *= 60;
+      }
+      return total;
+    }
+
+    return null;
+  }
+
+  function formatSeconds(totalSeconds) {
+    const s = parseTiempo(totalSeconds);
+    if (s == null || !isFinite(s)) return '';
+    const minutes = Math.floor(s / 60);
+    const seconds = (s % 60).toFixed(2).padStart(5, '0');
+    if (minutes <= 0) return seconds;
+    return `${minutes}:${seconds}`;
+  }
+
+  function normalizeStyle(estilo) {
+    if (!estilo) return '';
+    const map = {
+      libre: 'Freestyle',
+      freestyle: 'Freestyle',
+      mariposa: 'Butterfly',
+      butterfly: 'Butterfly',
+      pecho: 'Breaststroke',
+      breaststroke: 'Breaststroke',
+      espalda: 'Backstroke',
+      backstroke: 'Backstroke',
+      combinados: 'IM',
+      combinado: 'IM',
+      medley: 'IM',
+      im: 'IM'
+    };
+    const key = String(estilo || '').trim().toLowerCase();
+    return map[key] || estilo;
+  }
+
+  function getConversionFactor() {
+    const specific = parseFloat(getConfigValue('factor_conversion_SCM_a_LCM'));
+    if (specific && isFinite(specific)) return specific;
+    const generic = parseFloat(getConfigValue('factor_conversion'));
+    if (generic && isFinite(generic)) return generic;
+    return 1.02;
+  }
+
+  function normalizeMark(mark) {
+    const m = { ...mark };
+    const poolValues = ['LCM', 'SCM', 'SCY'];
+    const normalizeCourse = (v) => {
+      const upper = (v || '').toUpperCase();
+      return poolValues.includes(upper) ? upper : null;
+    };
+
+    const detectedCourse = normalizeCourse(m.pool_course) || normalizeCourse(m.curso) || normalizeCourse(m.tipo_toma) || normalizeCourse(m.tipo);
+    let captureType = m.capture_type || m.tipo || m.tipo_toma || m.curso || '';
+    if (normalizeCourse(captureType)) {
+      const alt = m.tipo || m.tipo_toma || m.capture_type || '';
+      if (!normalizeCourse(alt)) captureType = alt;
+      else captureType = '';
+    }
+
+    m.pool_course = detectedCourse || 'LCM';
+    m.capture_type = captureType || 'Competencia';
+    m.curso = m.pool_course;
+    m.tipo_toma = m.capture_type;
+
+    const distancia = Number(m.distancia_m ?? m.distancia);
+    if (!isNaN(distancia)) m.distancia_m = distancia;
+
+    m.estilo = normalizeStyle(m.estilo);
+
+    const parsedTiempo = parseTiempoEnSegundos(m.tiempo_s ?? m.tiempo_raw ?? m.tiempo ?? m.tiempo_str);
+    if (parsedTiempo != null) {
+      m.tiempo_s = parsedTiempo;
+      if (!m.tiempo_raw) m.tiempo_raw = formatSeconds(parsedTiempo) || String(parsedTiempo);
+      if (!m.tiempo_str) m.tiempo_str = formatSeconds(parsedTiempo) || m.tiempo_raw;
+    }
+
+    const factor = getConversionFactor();
+    const curso = (m.pool_course || '').toUpperCase();
+    if (parsedTiempo != null) {
+      if (curso === 'SCM') {
+        m.equiv_lcm_s = parsedTiempo * factor;
+        m.equiv_lcm_str = formatSeconds(m.equiv_lcm_s);
+        m.comparacion_curso = 'LCM';
+        m.origen_tiempo = 'SCM (conv→LCM)';
+      } else {
+        m.equiv_lcm_s = parsedTiempo;
+        m.equiv_lcm_str = formatSeconds(parsedTiempo);
+        m.comparacion_curso = curso || 'LCM';
+        m.origen_tiempo = curso || 'LCM';
+      }
+    }
+
+    return m;
+  }
+
+  function getActiveFilters() {
+    const seasonVal = $('filtroSeason')?.value || 'todos';
+    const ageVal = $('filtroEdad')?.value || 'todos';
+    return {
+      estilo: $('filtroEstilo')?.value || 'todos',
+      nivel: $('filtroNivel')?.value || 'todos',
+      season_year: seasonVal === 'todos' ? null : Number(seasonVal),
+      age_chip: ageVal === 'todos' ? null : Number(ageVal),
+      soloUSA: !!$('chkSoloConUSA')?.checked,
+      soloCADDA: !!$('chkSoloConCADDA')?.checked,
+      includeDeleted: !!$('chkIncluirEliminadas')?.checked
+    };
+  }
+
+  function applyFilters(marks = [], filters = {}) {
+    return marks.filter((m) => {
+      if (!filters.includeDeleted && m.deleted_at) return false;
+      if (filters.season_year != null && m.season_year !== filters.season_year) return false;
+      if (filters.age_chip != null && m.age_chip !== filters.age_chip) return false;
+      if (filters.soloUSA && !m.has_usa_standard) return false;
+      if (filters.soloCADDA && !m.has_cadda_min) return false;
+      if (filters.estilo && filters.estilo !== 'todos' && m.estilo !== filters.estilo) return false;
+      if (filters.nivel && filters.nivel !== 'todos') {
+        if (filters.nivel === 'sin' && m.nivel && m.nivel !== '—') return false;
+        else if (filters.nivel !== 'sin' && m.nivel !== filters.nivel) return false;
+      }
+      return true;
+    });
+  }
+
+  function annotateMarksWithFlags(marks = [], swimmer = null) {
+    const fecha_nac = swimmer?.fecha_nac || $('fecha_nac')?.value;
+    return marks.map((mk) => {
+      const fecha = mk?.fecha ? new Date(mk.fecha) : null;
+      const season_year = mk?.season_year ?? deriveSeasonYear(fecha);
+      const age_chip = mk?.age_chip ?? computeAgeChip(fecha_nac, fecha);
+      const hasUSA = !!(mk?.usa && (mk.usa.A_s != null || mk.usa.AA_s != null || mk.usa.nivel));
+      const hasCADDA = !!(mk?.cadda && (mk.cadda.tiempo_s != null || (mk.cadda.tipo_marca && String(mk.cadda.tipo_marca).toLowerCase().includes('min'))));
+      return { ...mk, season_year, age_chip, has_usa_standard: hasUSA, has_cadda_min: hasCADDA };
+    });
+  }
+
+  function poblarFiltros(marks = []) {
+    poblarFiltroSeasonAge(marks);
+    poblarFiltroEstilo(marks);
+  }
+
+  function poblarFiltroSeasonAge(marks = []) {
+    const selSeason = $('filtroSeason');
+    const selAge = $('filtroEdad');
+    if (!selSeason || !selAge) return;
+    const seasons = Array.from(new Set(marks.map((m) => m.season_year).filter((v) => v != null))).sort();
+    const ages = Array.from(new Set(marks.map((m) => m.age_chip).filter((v) => v != null))).sort((a, b) => a - b);
+    selSeason.innerHTML = '<option value="todos">Todos</option>';
+    seasons.forEach((se) => {
+      const opt = document.createElement('option');
+      opt.value = se;
+      opt.textContent = se;
+      selSeason.appendChild(opt);
+    });
+    selAge.innerHTML = '<option value="todos">Todas</option>';
+    ages.forEach((age) => {
+      const opt = document.createElement('option');
+      opt.value = age;
+      opt.textContent = age;
+      selAge.appendChild(opt);
+    });
+  }
+
+  function poblarFiltroEstilo(marks = []) {
+    const select = $('filtroEstilo');
+    if (!select) return;
+    const estilosSet = new Set();
+    marks.forEach((m) => m?.estilo && estilosSet.add(m.estilo));
+    const estilos = Array.from(estilosSet).sort();
+    select.innerHTML = '<option value="todos">Todos</option>';
+    estilos.forEach((est) => {
+      const opt = document.createElement('option');
+      opt.value = est;
+      opt.textContent = est;
+      select.appendChild(opt);
+    });
+  }
+
+  function setResultCount(totalMarks = 0, filtered = 0) {
+    const el = $('resultCount');
+    if (!el) return;
+    const hidden = totalMarks - filtered;
+    el.textContent = `${filtered} marcas visibles / ${totalMarks} totales${hidden > 0 ? ` (filtradas ${hidden})` : ''}`;
+  }
+
+  function aplicarFiltrosYRender() {
+    const list = $('marksList');
+    const msg = $('msgMarks');
+    if (list) list.innerHTML = '';
+    const marks = state.currentMarks || [];
+    if (!marks.length) {
+      if (msg) { msg.textContent = 'Todavía no hay marcas registradas.'; msg.className = 'msg'; }
+      setResultCount(0, 0);
+      return;
+    }
+    const filters = getActiveFilters();
+    const filtered = applyFilters(marks, filters);
+    const filteredSorted = filtered.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    filteredSorted.forEach((m) => renderMark(m, list));
+    if (msg) {
+      msg.textContent = filteredSorted.length ? '' : 'No hay marcas que cumplan con los filtros.';
+      msg.className = filteredSorted.length ? 'msg' : 'msg';
+    }
+    setResultCount(marks.length, filteredSorted.length);
+  }
+
+  function buildMarkKey(m) {
+    if (!m) return '';
+    const fecha = m.fecha || m.fecha_mark || '';
+    const estilo = m.estilo || '';
+    const distancia = m.distancia_m || m.distancia || '';
+    const curso = (m.curso || '').toUpperCase();
+    const tiempo = m.tiempo_raw || m.tiempo || m.tiempo_str || '';
+    const lugarEvento = m.lugar_evento || m.lugar || '';
+    return [fecha, estilo, distancia, curso, tiempo, lugarEvento].join('|');
+  }
+
+  async function fetchMarksSnapshot(coach_id, swimmer_id, cacheBust) {
+    const params = cacheBust ? { _ts: cacheBust } : {};
+    const url = buildGetUrl('get_swimmer_marks_with_context', { requireSwimmerId: true, params });
+    const res = await fetchWithTimeout(url, {}, 25000);
+    const data = await res.json();
+    return { data, marks: data?.marks || [] };
+  }
+
+  async function verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot, nuevaMarca }) {
+    const prevMarks = prevSnapshot?.marks || [];
+    const prevCount = prevMarks.length;
+
+    const isSimilarMark = (m) => {
+      if (!m) return false;
+      const fechaM = m.fecha || m.fecha_mark || '';
+      const fechaNueva = nuevaMarca?.fecha || '';
+      const estiloM = (m.estilo || '').toLowerCase();
+      const estiloNueva = (nuevaMarca?.estilo || '').toLowerCase();
+      const distanciaM = Number(m.distancia_m || m.distancia || 0);
+      const distanciaNueva = Number(nuevaMarca?.distancia_m || nuevaMarca?.distancia || 0);
+      const cursoM = (m.curso || '').toLowerCase();
+      const cursoNueva = (nuevaMarca?.curso || '').toLowerCase();
+
+      const tiempoM = parseTiempoEnSegundos(m.tiempo_s ?? m.tiempo_raw ?? m.tiempo ?? m.tiempo_str);
+      const tiempoNueva = parseTiempoEnSegundos(nuevaMarca?.tiempo_s ?? nuevaMarca?.tiempo_raw ?? nuevaMarca?.tiempo_str);
+
+      const createdMatch = nuevaMarca?.created_at && m.created_at === nuevaMarca.created_at;
+      const baseMatch = fechaM === fechaNueva && estiloM === estiloNueva && distanciaM === distanciaNueva && cursoM === cursoNueva;
+      const tiempoMatch = tiempoM != null && tiempoNueva != null && Math.abs(tiempoM - tiempoNueva) <= 0.02;
+
+      return createdMatch || (baseMatch && tiempoMatch);
+    };
+
+    const delays = [0, 800, 1500];
+    let lastSnapshot = prevSnapshot;
+    for (let i = 0; i < delays.length; i++) {
+      const wait = delays[i];
+      if (wait > 0) await delay(wait);
+      lastSnapshot = await fetchMarksSnapshot(coach_id, swimmer_id, Date.now());
+      const newMarks = lastSnapshot.marks || [];
+      const newCount = newMarks.length;
+      const hasCountIncrease = newCount >= prevCount + 1;
+      const hasSimilar = newMarks.some(isSimilarMark);
+      if (hasCountIncrease || hasSimilar) {
+        return { ok: true, prevCount, newCount, snapshot: lastSnapshot };
+      }
+    }
+
+    return { ok: false, prevCount, newCount: lastSnapshot?.marks?.length || prevCount, snapshot: lastSnapshot };
+  }
+
+  async function normalizarMarca(mark) {
+    let m = normalizeMark(mark);
+    m.cadda = m.cadda || {};
+    m.usa = m.usa || {};
+
+    const hydrateStandards = (stds = {}) => {
+      const caddaTime = parseTiempoEnSegundos(stds?.cadda?.tiempo_s ?? stds?.cadda?.tiempo ?? stds?.cadda);
+      if (caddaTime != null) {
+        m.cadda.tiempo_s = caddaTime;
+      }
+
+      const usaA = parseTiempoEnSegundos(stds?.usa?.A_s ?? stds?.usa?.A ?? stds?.A ?? stds?.usa_A_s);
+      const usaAA = parseTiempoEnSegundos(stds?.usa?.AA_s ?? stds?.usa?.AA ?? stds?.AA ?? stds?.usa_AA_s);
+      if (usaA != null) {
+        m.usa.A_s = usaA;
+      }
+      if (usaAA != null) {
+        m.usa.AA_s = usaAA;
+      }
+    };
+
+    const needsCadda = m.cadda.tiempo_s == null;
+    const needsUsa = m.usa.A_s == null && m.usa.AA_s == null;
+    if (needsCadda && needsUsa) {
+      const fallback = await fetchStandardsFromGlobal(m);
+      if (fallback) hydrateStandards(fallback);
+    }
+
+    const base = calcularBaseTiempo(m);
+
+    if (m.cadda.tiempo_s != null) {
+      if (m.cadda.brecha_s == null && base != null) {
+        m.cadda.brecha_s = base - m.cadda.tiempo_s;
+      }
+      if (m.cadda.brecha_pct == null && m.cadda.brecha_s != null) {
+        m.cadda.brecha_pct = (m.cadda.brecha_s / m.cadda.tiempo_s) * 100;
+      }
+    }
+
+    if (m.usa) {
+      if (m.usa.A_s != null && m.usa.A_brecha_s == null && base != null) {
+        m.usa.A_brecha_s = base - m.usa.A_s;
+      }
+      if (m.usa.AA_s != null && m.usa.AA_brecha_s == null && base != null) {
+        m.usa.AA_brecha_s = base - m.usa.AA_s;
+      }
+    }
+
+    m.nivel = determinarNivel(m, base);
+    return m;
+  }
+
+  function calcularBaseTiempo(m) {
+    const equiv = parseTiempo(m.equiv_lcm_s);
+    const tiempo = parseTiempoEnSegundos(m.tiempo_s ?? m.tiempo_raw ?? m.tiempo_str);
+    if (equiv != null) return equiv;
+    if (tiempo == null) return null;
+    if ((m.pool_course || m.curso || '').toUpperCase() === 'SCM') {
+      return tiempo * getConversionFactor();
+    }
+    return tiempo;
+  }
+
+  function determinarNivel(m, base) {
+    if (m.nivel && m.nivel !== '—') return m.nivel;
+    if (base == null) return '—';
+    if (m.usa && m.usa.AA_s != null && base <= m.usa.AA_s) return 'AA';
+    if (m.usa && m.usa.A_s != null && base <= m.usa.A_s) return 'A';
+    if (m.cadda && m.cadda.tiempo_s != null && base <= m.cadda.tiempo_s) return m.nivel || 'AR';
+    return '—';
+  }
+
+  async function fetchStandardsFromGlobal(m) {
+    const baseUrl = getConfigValue('standards_webapp_url', 'standards_url', 'standardsWebAppUrl');
+    if (!baseUrl) return null;
+
+    const estilo = m.estilo;
+    const distancia = m.distancia_m || m.distancia;
+    const edad = calcularEdad($('fecha_nac')?.value);
+    const genero = $('genero')?.value || m.genero;
+    const params = new URLSearchParams({ estilo, distancia_m: distancia, curso: 'LCM' });
+    if (edad != null) params.append('edad', edad);
+    if (genero) params.append('genero', genero);
+
+    const cacheKey = `${baseUrl}|${params.toString()}`;
+    const cached = standardsCache[cacheKey];
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+      return cached.data;
+    }
+
+    const actions = ['get_standards', 'get_event_standards', 'get_standards_for_event'];
+    for (const action of actions) {
+      try {
+        const url = `${baseUrl}?action=${action}&${params.toString()}`;
+        const res = await fetchWithTimeout(url, {}, 12000);
+        const data = await res.json();
+        if (data && (data.status === 'ok' || data.ok === true)) {
+          const standards = data.standards || data.standard || data.data || data.refs || data;
+          standardsCache[cacheKey] = { timestamp: Date.now(), data: standards };
+          return standards;
+        }
+      } catch (err) {
+        console.warn('Fallback standards error', action, err);
+      }
+    }
+    return null;
+  }
+
+  function renderMark(m, list) {
+    if (!list) return;
+    const li = document.createElement('li');
+    li.className = 'mark-item';
+
+    const prueba = m.prueba || `${m.estilo} ${m.distancia_m}m`;
+    const tiempo = m.tiempo_str || m.tiempo_raw || '';
+    const cursoLabel = m.origen_tiempo || (m.pool_course === 'SCM' ? 'SCM (conv→LCM)' : cursoToLabel(m.pool_course || m.curso));
+    const badge = nivelBadge(m.nivel);
+    const hasReferences = Boolean((m.cadda && m.cadda.tiempo_s != null) || (m.usa && (m.usa.A_s != null || m.usa.AA_s != null)));
+    const textoProgreso = hasReferences ? textoMotivacional(m) : 'Sin referencias cargadas para esta prueba';
+    const chips = brechaChips(m) || (!hasReferences ? '<span class="chip-small">Sin referencias cargadas para esta prueba</span>' : '');
+    const captura = m.capture_type || m.tipo_toma || '';
+    const equivLine = ((m.pool_course || m.curso || '').toUpperCase() === 'SCM' && m.equiv_lcm_str)
+      ? `Equivalente LCM: ${m.equiv_lcm_str}`
+      : '';
+    const metaChips = [
+      m.season_year != null ? `<span class="chip-small">Año: ${m.season_year}</span>` : '',
+      m.age_chip != null ? `<span class="chip-small">Edad: ${m.age_chip}</span>` : ''
+    ].filter(Boolean).join(' ');
+    const editButtons = canEditMarks() && (m.mark_id || m.client_mark_id) ? `
+      <div class="mark-actions">
+        <button type="button" class="ghost" onclick="editarMarca('${m.mark_id || m.client_mark_id}')">✏️ Editar</button>
+        <button type="button" class="secondary" onclick="borrarMarca('${m.mark_id || m.client_mark_id}')">🗑️ Borrar</button>
+      </div>` : '';
+    const deletedInfo = m.deleted_at ? `<div class="mark-sub" style="color:#b91c1c;">Eliminada el ${formatearFecha(m.deleted_at)}</div>` : '';
+
+    li.innerHTML = `
+      <div class="mark-header">
+        <div class="mark-main">
+          ${prueba}
+          <span class="tag">${cursoLabel}</span>
+        </div>
+        <div class="mark-main">
+          ${tiempo}
+        </div>
+      </div>
+      <div class="mark-sub">
+        ${formatearFecha(m.fecha)} · ${captura} · ${m.lugar_evento || ''}
+      </div>
+      <div class="chips-row">
+        ${badge}
+        ${chips}
+        ${metaChips}
+      </div>
+      ${equivLine ? `<div class="mark-sub">${equivLine}</div>` : ''}
+      ${deletedInfo}
+      <div class="mark-footer">
+        ${textoProgreso}
+      </div>
+      ${editButtons}
+    `;
+    list.appendChild(li);
+  }
+
+  function editarMarca(markId) {
+    if (!canEditMarks()) return;
+    const mark = (state.currentMarks || []).find((m) => (m.mark_id || m.client_mark_id) === markId);
+    if (!mark) return;
+    state.editingMarkId = mark.mark_id || markId;
+    $('fecha_mark') && ($('fecha_mark').value = toDateInputValue(mark.fecha));
+    $('lugar_evento') && ($('lugar_evento').value = mark.lugar_evento || mark.lugar || '');
+    $('curso') && ($('curso').value = mark.tipo_toma || mark.curso || '');
+    $('tipo_toma') && ($('tipo_toma').value = mark.curso || mark.tipo || '');
+    $('estilo') && ($('estilo').value = mark.estilo || '');
+    $('distancia_m') && ($('distancia_m').value = mark.distancia_m || mark.distancia || '');
+    $('carril') && ($('carril').value = mark.carril || '');
+    $('tiempo_raw') && ($('tiempo_raw').value = mark.tiempo_raw || mark.tiempo_str || '');
+    updateMarkMetaChips();
+    const btn = $('btnGuardarMarca');
+    if (btn) btn.textContent = 'Actualizar marca';
+    setStatus('Editando marca seleccionada.', '');
+  }
+
+  async function borrarMarca(markId) {
+    if (!canEditMarks()) return;
+    const url = syncWebAppUrl_();
+    const msg = $('msgMark');
+    const coach_id = $('coach_id')?.value?.trim();
+    const swimmer_id = $('swimmer_id')?.value?.trim();
+    if (!url || !coach_id || !swimmer_id || !markId) {
+      if (msg) { msg.textContent = 'No se puede eliminar: faltan datos base.'; msg.className = 'msg error'; }
+      return;
+    }
+    const confirmado = confirm('¿Seguro que quieres eliminar esta marca? Se usará eliminación lógica.');
+    if (!confirmado) return;
+    try {
+      setLoading(true);
+      setStatus('Eliminando marca...', '');
+      const payload = { action: 'delete_mark', coach_id, swimmer_id, mark_id: markId, soft_delete: true };
+      const res = await fetchWithTimeout(url, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      }, 18000);
+      const data = await res.json();
+      if (data.status !== 'ok') throw new Error(data.message || 'No se pudo eliminar.');
+      setStatus('Marca eliminada (soft delete).', 'ok');
+      await cargarMisMarcas();
+    } catch (err) {
+      if (msg) { msg.textContent = 'Error al eliminar: ' + err; msg.className = 'msg error'; }
+      setStatus('Error al eliminar: ' + err, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function guardarPerfil() {
+    const url = syncWebAppUrl_();
+    const msg = $('msgPerfil');
+    if (!url) {
+      if (msg) { msg.textContent = 'Falta configurar la URL Web App del coach.'; msg.className = 'msg error'; }
+      return;
+    }
+
+    const coach_id = $('coach_id')?.value?.trim();
+    let swimmer_id = $('swimmer_id')?.value?.trim();
+    const nombre = $('nombre')?.value?.trim();
+    const fecha_nac = $('fecha_nac')?.value;
+    const genero = $('genero')?.value;
+    const altura_cm = Number($('altura_cm')?.value);
+    const peso_kg = Number($('peso_kg')?.value);
+    const fc_reposo = Number($('fc_reposo')?.value);
+
+    if (!coach_id || !nombre || !fecha_nac) {
+      if (msg) { msg.textContent = 'Falta coach, nombre o fecha de nacimiento.'; msg.className = 'msg error'; }
+      return;
+    }
+
+    if (!swimmer_id) {
+      swimmer_id = generarSwimmerId(nombre, fecha_nac, coach_id);
+      if ($('swimmer_id')) $('swimmer_id').value = swimmer_id;
+    }
+
+    actualizarEdadYCategoria();
+
+    const payload = {
+      action: 'register_swimmer',
+      coach_id,
+      swimmer: { swimmer_id, nombre, fecha_nac, genero, altura_cm, peso_kg, fc_reposo }
+    };
+
+    try {
+      setLoading(true);
+      setStatus('Guardando perfil...', '');
+      const res = await fetchWithTimeout(url, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        if (msg) { msg.textContent = 'Perfil guardado correctamente.'; msg.className = 'msg ok'; }
+        saveProfile({ ...payload.swimmer, coach_id });
+        persistConfigFromInputs();
+        setStatus('Perfil guardado y persistido localmente.', 'ok');
+      } else {
+        throw new Error(data.message || 'No se pudo guardar.');
+      }
+    } catch (err) {
+      if (msg) { msg.textContent = 'Error: ' + err; msg.className = 'msg error'; }
+      setStatus('Error al guardar perfil: ' + err, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function guardarMarca() {
+    const url = syncWebAppUrl_();
+    const msg = $('msgMark');
+    if (!url) {
+      if (msg) { msg.textContent = 'Falta configurar la URL Web App del coach.'; msg.className = 'msg error'; }
+      return;
+    }
+
+    const coach_id = $('coach_id')?.value?.trim();
+    const swimmer_id = $('swimmer_id')?.value?.trim();
+    const fecha = $('fecha_mark')?.value;
+    const fecha_nac = $('fecha_nac')?.value;
+    const lugar = $('lugar_evento')?.value?.trim();
+    const tipo_toma = $('curso')?.value; // En la sheet, tipo_toma = curso (SCM/LCM/SCY)
+    const curso = $('tipo_toma')?.value; // En la sheet, curso = Competencia/Entrenamiento
+    const estilo = $('estilo')?.value;
+    const distancia = Number($('distancia_m')?.value);
+    const carril = $('carril')?.value?.trim();
+    const tiempo_raw = $('tiempo_raw')?.value?.trim();
+    const tiempo_str = (tiempo_raw || '').replace(',', '.');
+    const tiempo_s = parseTiempoEnSegundos(tiempo_str);
+    const season_year = deriveSeasonYear(fecha);
+    const age_chip = computeAgeChip(fecha_nac, fecha);
+
+    if (!fecha) {
+      if (msg) { msg.textContent = 'La fecha es obligatoria para guardar la marca.'; msg.className = 'msg error'; }
+      return;
+    }
+
+    if (!coach_id || !swimmer_id || !estilo || !distancia || !tiempo_raw) {
+      if (msg) { msg.textContent = 'Faltan datos obligatorios (coach, nadador, fecha, estilo, distancia, tiempo).'; msg.className = 'msg error'; }
+      return;
+    }
+
+    const client_mark_id = `MK_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    const created_at = new Date().toISOString();
+
+    const mark = {
+      fecha,
+      lugar,
+      lugar_evento: lugar,
+      curso,
+      tipo_toma,
+      estilo,
+      distancia_m: distancia,
+      carril,
+      tiempo_raw,
+      tiempo_str,
+      tiempo_s,
+      age_chip,
+      season_year,
+      created_at,
+      client_mark_id
+    };
+
+    const markNormalized = normalizeMark({ ...mark });
+
+    const payload = {
+      action: state.editingMarkId ? 'update_mark' : 'add_mark',
+      coach_id,
+      swimmer_id,
+      mark_id: state.editingMarkId || undefined,
+      fecha,
+      lugar_evento: lugar,
+      lugar,
+      evento: lugar,
+      curso,
+      tipo_toma,
+      tipo: tipo_toma,
+      estilo,
+      distancia_m: distancia,
+      carril,
+      tiempo_raw,
+      tiempo: tiempo_raw,
+      tiempo_str,
+      tiempo_s,
+      age_chip,
+      season_year,
+      created_at,
+      client_mark_id
+    };
+
+    const debugLogs = [];
+    const logDebug = (line) => {
+      debugLogs.push(line);
+      setStatus(debugLogs.join('\n'), '');
+    };
+
+    let snapshotPrevio;
+
+    try {
+      setLoading(true);
+      setStatus('Guardando marca...', '');
+      if (!state.editingMarkId) {
+        snapshotPrevio = await fetchMarksSnapshot(coach_id, swimmer_id, Date.now());
+      }
+
+      const urlObj = new URL(url);
+      urlObj.searchParams.set('action', payload.action);
+      urlObj.searchParams.set('coach_id', coach_id);
+      urlObj.searchParams.set('swimmer_id', swimmer_id);
+      urlObj.searchParams.set('_ts', Date.now());
+
+      const bodyParams = new URLSearchParams();
+      Object.entries(payload).forEach(([k, v]) => {
+        if (v != null && v !== '') bodyParams.append(k, v);
+      });
+
+      logDebug(`DEBUG guardarMarca: URL=${urlObj.toString()}`);
+      const res = await fetchWithTimeout(urlObj.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: bodyParams.toString(),
+        cache: 'no-store'
+      }, 25000);
+
+      const responseText = await res.text();
+      logDebug(`HTTP ${res.status} ${res.statusText} · bodyHead=${responseText.slice(0, 200)}`);
+      let data = null;
+      try { data = JSON.parse(responseText); } catch (err) { data = null; }
+      if (!res.ok || (data && data.status && data.status !== 'ok')) {
+        const message = (data && data.message) || res.statusText || 'No se pudo guardar.';
+        throw new Error(message);
+      }
+
+      if (state.editingMarkId) {
+        if (msg) { msg.textContent = 'Marca actualizada correctamente.'; msg.className = 'msg ok'; }
+        setStatus('Marca actualizada.', 'ok');
+        state.editingMarkId = null;
+        const btn = $('btnGuardarMarca');
+        if (btn) btn.textContent = 'Guardar marca';
+        await cargarMisMarcas();
+        return;
+      }
+
+      const verif1 = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: snapshotPrevio, nuevaMarca: markNormalized });
+      logDebug(`Verificación: prevCount=${verif1.prevCount} newCount=${verif1.newCount}`);
+
+      if (verif1.ok) {
+        logDebug('Resultado: persistido');
+        if (msg) { msg.textContent = 'Marca guardada correctamente.'; msg.className = 'msg ok'; }
+        if ($('tiempo_raw')) $('tiempo_raw').value = '';
+        setStatus('Marca guardada y verificada.', 'ok');
+        await cargarMisMarcas();
+        return;
+      }
+
+      logDebug('Resultado: NO persistido');
+      if (msg) { msg.textContent = 'Servidor OK, pero no se confirmó la escritura en la planilla. Revisar endpoint add_mark o permisos.'; msg.className = 'msg error'; }
+      logDebug('Payload enviado: ' + bodyParams.toString());
+    } catch (err) {
+      const errText = String(err || '');
+      if (msg) { msg.textContent = 'Error: ' + errText; msg.className = 'msg error'; }
+      const extra = debugLogs.length ? `\n${debugLogs.join('\n')}` : '';
+      const hint = errText.includes('Failed to fetch') ? '\nSugerencia: revisar despliegue: acceso “Cualquiera” y ejecutar como propietario.' : '';
+      setStatus('Error al guardar marca: ' + errText + hint + extra, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function cursoToLabel(curso) {
+    const c = (curso || '').toUpperCase();
+    if (c === 'LCM') return '50 m (olímpica)';
+    if (c === 'SCM') return '25 m (semiolímpica)';
+    if (c === 'SCY') return '25 yd';
+    return c;
+  }
+
+  function nivelBadge(nivel) {
+    if (!nivel || nivel === '—') {
+      return '<span class="badge-nivel badge-none">Sin corte todavía</span>';
+    }
+    if (nivel === 'AA') {
+      return '<span class="badge-nivel badge-AA">Nivel AA · élite para tu edad</span>';
+    }
+    if (nivel === 'A') {
+      return '<span class="badge-nivel badge-A">Nivel A · alto rendimiento</span>';
+    }
+    if (nivel === 'AR') {
+      return '<span class="badge-nivel badge-AR">Nivel AR · mínima / ranking nacional</span>';
+    }
+    return `<span class="badge-nivel badge-none">${nivel}</span>`;
+  }
+
+  function brechaChips(m) {
+    const chips = [];
+    if (m.cadda && m.cadda.tiempo_s != null && m.cadda.brecha_s != null) {
+      const sign = m.cadda.brecha_s > 0 ? '+' : '';
+      const cls = m.cadda.brecha_s > 0 ? 'brecha-pos' : 'brecha-neg';
+      chips.push(`<span class="chip-small">CADDA: <span class="${cls}">${sign}${m.cadda.brecha_s.toFixed(2)} s</span></span>`);
+    }
+    if (m.usa && m.usa.A_s != null && m.usa.A_brecha_s != null) {
+      const sign = m.usa.A_brecha_s > 0 ? '+' : '';
+      const cls = m.usa.A_brecha_s > 0 ? 'brecha-pos' : 'brecha-neg';
+      chips.push(`<span class="chip-small">A: <span class="${cls}">${sign}${m.usa.A_brecha_s.toFixed(2)} s</span></span>`);
+    }
+    if (m.usa && m.usa.AA_s != null && m.usa.AA_brecha_s != null) {
+      const sign = m.usa.AA_brecha_s > 0 ? '+' : '';
+      const cls = m.usa.AA_brecha_s > 0 ? 'brecha-pos' : 'brecha-neg';
+      chips.push(`<span class="chip-small">AA: <span class="${cls}">${sign}${m.usa.AA_brecha_s.toFixed(2)} s</span></span>`);
+    }
+    return chips.join(' ');
+  }
+
+  function textoMotivacional(m) {
+    const nivel = m.nivel || '—';
+    if (nivel === 'AA') {
+      return 'Ya estás por encima del nivel AA para tu edad. El foco ahora es sostener estas marcas y seguir puliendo detalles técnicos.';
+    }
+    if (nivel === 'A') {
+      if (m.usa && m.usa.AA_brecha_s != null) {
+        const falta = m.usa.AA_brecha_s;
+        if (falta > 0) {
+          return `Estás en nivel A. Te faltan aproximadamente ${falta.toFixed(2)} segundos para llegar a AA: objetivo de alto rendimiento internacional.`;
+        }
+        return 'Estás en nivel A y muy cerca (o dentro) de los tiempos AA. Seguí trabajando sobre ritmo de prueba y virajes.';
+      }
+      return 'Estás en nivel A. Es un excelente punto de partida para apuntar a AA.';
+    }
+    if (nivel === 'AR') {
+      if (m.cadda && m.cadda.brecha_s != null) {
+        if (m.cadda.brecha_s <= 0) {
+          return 'Ya cumplís mínimas nacionales. El siguiente paso es acercarte a los tiempos A de USA para tu edad.';
+        }
+        return `Estás cerca de la mínima nacional. Te faltan unos ${m.cadda.brecha_s.toFixed(2)} segundos: objetivo alcanzable con continuidad de entrenamiento.`;
+      }
+      return 'Estás en zona de trabajo hacia mínimas nacionales. Cada mejora suma.';
+    }
+    let objetivo = 'mínimas nacionales';
+    if (m.cadda && m.cadda.brecha_s != null && m.cadda.brecha_s > 0 && m.cadda.brecha_s < 3) {
+      objetivo = 'tu primera mínima nacional';
+    }
+    return `Esta marca todavía está en camino hacia ${objetivo}. Usala como referencia personal y tratá de superarla en tu próximo intento.`;
+  }
+
+  function formatearFecha(f) {
+    if (!f) return '';
+    const d = new Date(f);
+    if (isNaN(d.getTime())) return f;
+    const dia = d.getDate().toString().padStart(2, '0');
+    const mes = (d.getMonth() + 1).toString().padStart(2, '0');
+    const año = d.getFullYear();
+    return `${dia}/${mes}/${año}`;
+  }
+
+  function initFromStorage() {
+    const cfg = loadConfig();
+    state.lastConfig = { ...(cfg || {}) };
+    const legacyUrl = localStorage.getItem('mdv_webapp_url');
+    const url = cfg.webapp_url || legacyUrl || '';
+    const webappInput = $('webapp_url');
+    if (webappInput && url && !webappInput.value) webappInput.value = url;
+    const coachInput = $('coach_id');
+    if (coachInput && cfg.coach_id && !coachInput.value) coachInput.value = cfg.coach_id;
+    const swimmerInput = $('swimmer_id');
+    if (swimmerInput && cfg.swimmer_id && !swimmerInput.value) swimmerInput.value = cfg.swimmer_id;
+
+    const allowEditToggle = $('allowEditMarksToggle');
+    if (allowEditToggle) allowEditToggle.checked = !!cfg.allow_swimmer_mark_edit;
+
+    const profile = loadProfileFromStorage();
+    fillProfile(profile, { onlyEmpty: true });
+    if (profile.swimmer_id) {
+      setStatus('Perfil restaurado desde el dispositivo.', 'ok');
+      state.currentSwimmer = { ...profile };
+    }
+  }
+
+  function attachListeners() {
+    ['webapp_url', 'coach_id', 'swimmer_id'].forEach((id) => {
+      const el = $(id);
+      if (el) {
+        el.addEventListener('input', () => {
+          persistConfigFromInputs();
+          if (id === 'swimmer_id') {
+            const notice = $('swimmerNotice');
+            if (notice) { notice.textContent = 'Swimmer ID cambió, puedes sincronizar el perfil.'; notice.className = 'msg'; }
+          }
+        });
+      }
+    });
+    const fechaInput = $('fecha_nac');
+    if (fechaInput) fechaInput.addEventListener('change', actualizarEdadYCategoria);
+    const fechaMark = $('fecha_mark');
+    if (fechaMark) fechaMark.addEventListener('change', updateMarkMetaChips);
+
+    const allowEditToggle = $('allowEditMarksToggle');
+    if (allowEditToggle) {
+      allowEditToggle.addEventListener('change', () => {
+        persistConfigFromInputs();
+        aplicarFiltrosYRender();
+      });
+    }
+  }
+
+  async function sincronizarMarcasAlArrancar() {
+    const cfg = loadConfig();
+    const hasBasics = (cfg.webapp_url || $('webapp_url')?.value?.trim())
+      && (cfg.coach_id || $('coach_id')?.value?.trim())
+      && (cfg.swimmer_id || $('swimmer_id')?.value?.trim());
+
+    if (!hasBasics) return;
+
+    try {
+      await cargarMisMarcas();
+    } catch (err) {
+      console.warn('Auto-sync de marcas falló:', err);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initFromStorage();
+    attachListeners();
+    syncWebAppUrl_();
+    sincronizarMarcasAlArrancar();
+  });
+</script>
+
+</body>
+</html>
