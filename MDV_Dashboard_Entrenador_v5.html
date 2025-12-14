@@ -349,6 +349,33 @@
     .time-sub{ font-size:0.72rem; color:#6b7280; margin-top:2px; }
     td, th { letter-spacing: 0.01em; }
 
+    /* --- Estado de carga prolongada --- */
+    .loading-panel {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 0.7rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin: 0.45rem 0;
+    }
+    .loading-panel.hidden { display: none; }
+    .loading-panel .spinner {
+      width: 26px;
+      height: 26px;
+      border: 3px solid #dbeafe;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    .loading-meta { font-size: 0.78rem; color: #475569; }
+    .loading-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .loading-status { font-weight: 600; color: #1f2937; }
+    .loading-warning { color: #b45309; font-size: 0.78rem; margin-top: 0.2rem; }
+
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
   </style>
 </head>
 <body>
@@ -366,6 +393,9 @@
       <h2><span class="dot"></span> Conexión</h2>
       <label>URL Web App (Apps Script)
         <input id="web_app_url" type="text" placeholder="https://script.google.com/macros/s/XXXXX/exec">
+      </label>
+      <label>Timeout (ms)
+        <input id="timeout_ms" type="number" min="1000" step="1000" placeholder="35000" title="Tiempo máximo de espera por request">
       </label>
       <label>Coach ID
         <input id="coach_id" type="text" placeholder="COACH_MDV_001">
@@ -435,6 +465,22 @@
       </div>
       <div id="msgReport" class="msg"></div>
 
+      <div id="loadingPanel" class="loading-panel hidden" aria-live="polite">
+        <div class="spinner" role="status" aria-label="Cargando"></div>
+        <div style="flex:1;min-width:0;">
+          <div id="loadingStatus" class="loading-status">Preparando solicitud...</div>
+          <div class="loading-meta">
+            <span id="loadingElapsed">0.0s</span>
+            <span id="loadingExtra" style="margin-left:0.35rem;color:#6b7280;"></span>
+          </div>
+          <div id="loadingWarning" class="loading-warning" style="display:none;">Esto puede tardar un poco, seguimos esperando...</div>
+        </div>
+        <div class="loading-actions">
+          <button id="btnCancelLoad" class="secondary" type="button">Cancelar carga</button>
+          <button id="btnRetryLoad" class="secondary" type="button">Reintentar</button>
+        </div>
+      </div>
+
       <div class="filters-row">
         <div>
           <label for="filtroEstilo">Filtrar por estilo</label>
@@ -489,6 +535,9 @@
   let currentEventos = [];
   let currentSwimmerMeta = null;
   let currentReportAbortController = null;
+  let currentLoadingTimer = null;
+  let currentLoadingStart = null;
+  let currentLoadingKey = null;
 
   const state = {
     isLoadingSwimmers: false,
@@ -501,6 +550,11 @@
 
   const LS_KEY = 'MDV_COACH_DASH_FIX_V1';
   const AUTO_REFRESH_MS = 30000;
+  const DEFAULT_TIMEOUT_MS = 35000;
+  const LONG_WAIT_HINT_MS = 12000;
+  const CACHE_TTL_MS = 3 * 60 * 1000;
+  const CACHE_PREFIX = 'ctx_cache_v1::';
+  const inflightRequests = new Map();
 
   function logStatus(msg, type = 'info', meta) {
     const panel = $('statusLog');
@@ -522,6 +576,56 @@
     if (!el) return;
     el.textContent = text;
     el.className = cls;
+  }
+
+  function getTimeoutMs() {
+    const inputVal = Number($('timeout_ms')?.value);
+    if (!isNaN(inputVal) && inputVal > 0) return inputVal;
+    return DEFAULT_TIMEOUT_MS;
+  }
+
+  function formatMs(ms) { return (ms / 1000).toFixed(1) + 's'; }
+
+  function startLoadingUI(key, statusText = 'Cargando marcas...') {
+    currentLoadingKey = key;
+    const panel = $('loadingPanel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    const warning = $('loadingWarning');
+    if (warning) warning.style.display = 'none';
+    const statusEl = $('loadingStatus');
+    if (statusEl) statusEl.textContent = statusText;
+    const extraEl = $('loadingExtra');
+    if (extraEl) extraEl.textContent = 'Esperando respuesta...';
+    currentLoadingStart = Date.now();
+    updateElapsed();
+    if (currentLoadingTimer) clearInterval(currentLoadingTimer);
+    currentLoadingTimer = setInterval(updateElapsed, 500);
+  }
+
+  function updateElapsed() {
+    const elapsedEl = $('loadingElapsed');
+    if (!elapsedEl || !currentLoadingStart) return;
+    const elapsedMs = Date.now() - currentLoadingStart;
+    elapsedEl.textContent = formatMs(elapsedMs);
+    if (elapsedMs >= LONG_WAIT_HINT_MS) {
+      const warning = $('loadingWarning');
+      if (warning) warning.style.display = 'block';
+    }
+  }
+
+  function updateLoadingStatus(text, extra) {
+    if (text && $('loadingStatus')) $('loadingStatus').textContent = text;
+    if ($('loadingExtra')) $('loadingExtra').textContent = extra || '';
+  }
+
+  function stopLoadingUI() {
+    if (currentLoadingTimer) clearInterval(currentLoadingTimer);
+    currentLoadingTimer = null;
+    currentLoadingStart = null;
+    const panel = $('loadingPanel');
+    if (panel) panel.classList.add('hidden');
+    currentLoadingKey = null;
   }
 
   function updateButtonsDisabled() {
@@ -561,7 +665,8 @@
     const spreadsheetId = $('spreadsheet_id')?.value?.trim();
     const autoRefresh = !!$('chkAutoRefresh')?.checked;
     const debug = !!$('chkDebug')?.checked;
-    setCfg({ webAppUrl, coachId, spreadsheetId, autoRefresh, selectedSwimmerId: state.selectedSwimmerId, debug });
+    const timeoutMs = Number($('timeout_ms')?.value) || undefined;
+    setCfg({ webAppUrl, coachId, spreadsheetId, autoRefresh, selectedSwimmerId: state.selectedSwimmerId, debug, timeoutMs });
   }
   function restoreCfgToFields() {
     const cfg = getCfg();
@@ -570,6 +675,7 @@
     if (cfg.spreadsheetId && $('spreadsheet_id')) $('spreadsheet_id').value = cfg.spreadsheetId;
     if (typeof cfg.autoRefresh === 'boolean' && $('chkAutoRefresh')) $('chkAutoRefresh').checked = cfg.autoRefresh;
     if (typeof cfg.debug === 'boolean' && $('chkDebug')) $('chkDebug').checked = cfg.debug;
+    if (typeof cfg.timeoutMs === 'number' && $('timeout_ms')) $('timeout_ms').value = cfg.timeoutMs;
     if (cfg.selectedSwimmerId) state.selectedSwimmerId = cfg.selectedSwimmerId;
     state.debug = !!cfg.debug;
   }
@@ -579,6 +685,7 @@
     ['web_app_url','coach_id','spreadsheet_id'].forEach(id => { const el = $(id); if (el) el.value = ''; });
     state.selectedSwimmerId = null;
     state.debug = false;
+    if ($('timeout_ms')) $('timeout_ms').value = '';
     if ($('chkAutoRefresh')) $('chkAutoRefresh').checked = false;
     if ($('chkDebug')) $('chkDebug').checked = false;
     stopAutoRefresh();
@@ -611,15 +718,22 @@
     el.textContent = `Última actualización: ${hh}:${mm}:${ss}`;
   }
 
-  async function fetchWithTimeout(url, options = {}, timeoutMs = 12000, externalSignal) {
+  async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS, externalSignal) {
+    let resolvedTimeout = timeoutMs;
+    let fetchOptions = { ...options };
+    if (typeof options.timeoutMs === 'number') {
+      resolvedTimeout = options.timeoutMs;
+      const { timeoutMs: _discard, ...rest } = options;
+      fetchOptions = rest;
+    }
     const controller = new AbortController();
     if (externalSignal) {
       if (externalSignal.aborted) controller.abort(externalSignal.reason);
       else externalSignal.addEventListener('abort', () => controller.abort(externalSignal.reason), { once: true });
     }
-    const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
+    const timer = setTimeout(() => controller.abort('timeout'), resolvedTimeout);
     try {
-      const res = await fetch(url, { ...options, signal: controller.signal });
+      const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
       clearTimeout(timer);
       return res;
     } catch (err) {
@@ -640,6 +754,144 @@
 
   function parseJsonSafe(text) { try { return JSON.parse(text); } catch { return null; } }
 
+  function cacheKeyForContext(coachId, swimmerId, action) {
+    return CACHE_PREFIX + [coachId, swimmerId, action].filter(Boolean).join('::');
+  }
+
+  function readCache(key) {
+    try {
+      const raw = sessionStorage.getItem(key) || localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed;
+    } catch (err) {
+      console.error('Error leyendo cache', err);
+      return null;
+    }
+  }
+
+  function writeCache(key, value) {
+    try {
+      const payload = JSON.stringify({ ...value, ts: Date.now() });
+      sessionStorage.setItem(key, payload);
+    } catch (err) {
+      console.error('Error guardando cache', err);
+    }
+  }
+
+  function cacheFresh(entry) {
+    if (!entry || typeof entry.ts !== 'number') return false;
+    return Date.now() - entry.ts < CACHE_TTL_MS;
+  }
+
+  function shouldRetry(res, err) {
+    if (err) {
+      if (err.name === 'AbortError') return err?.message === 'timeout' || err?.message === 'The user aborted a request.';
+      return true; // network error
+    }
+    return res && [502,503,504].includes(res.status);
+  }
+
+  function parseResponseText(text) {
+    const data = parseJsonSafe(text);
+    if (data) return data;
+    return { status: 'error', error: 'Respuesta no es JSON válido', raw: text?.slice(0,200) };
+  }
+
+  async function loadSwimmerContext(baseUrl, coachId, swimmerId, sheetId, externalSignal, opts = {}) {
+    if (!coachId || !swimmerId) throw new Error('Faltan coach_id o swimmer_id');
+    const params = { coach_id: coachId, swimmer_id: swimmerId };
+    if (sheetId) params.spreadsheet_id = sheetId;
+    const action = 'get_swimmer_marks_with_context';
+    const fullUrl = buildUrl(baseUrl, action, params);
+    const key = cacheKeyForContext(coachId, swimmerId, action);
+    const timeoutMs = opts.timeoutMs || getTimeoutMs();
+
+    const cached = readCache(key);
+    if (cached && cacheFresh(cached)) {
+      logStatus('Usando cache local (stale-while-revalidate)','muted', state.debug ? `${fullUrl}` : undefined);
+      const revalidatePromise = triggerRevalidate();
+      return { data: cached.data, meta: { ...cached.meta, fromCache: true, ageMs: Date.now() - cached.ts }, revalidatePromise, fromCache: true };
+    }
+
+    if (inflightRequests.has(key)) {
+      logStatus('Reutilizando request en curso','muted');
+      return inflightRequests.get(key).promise;
+    }
+
+    const controller = new AbortController();
+    currentReportAbortController = controller;
+    if (externalSignal) {
+      if (externalSignal.aborted) controller.abort(externalSignal.reason);
+      else externalSignal.addEventListener('abort', () => controller.abort('cancelled'), { once: true });
+    }
+
+    const fetchPromise = (async () => {
+      let attempt = 1;
+      let lastError = null;
+      let res = null;
+      const started = Date.now();
+      while (attempt <= 2) {
+        updateLoadingStatus('Cargando marcas...', `Intento ${attempt}/2`);
+        try {
+          res = await fetchWithTimeout(fullUrl, { timeoutMs }, timeoutMs, controller.signal);
+          const text = await res.text();
+          const data = parseResponseText(text);
+          const meta = { url: fullUrl, status: res.status, body: text.slice(0,200), action };
+          const duration = Date.now() - started;
+          const size = text?.length || 0;
+          logStatus(`Resp ${res.status} en ${formatMs(duration)} (${size} chars)`, 'muted', state.debug ? `${fullUrl}` : undefined);
+          if (data.status === 'ok') {
+            writeCache(key, { data, meta });
+            return { data, meta };
+          }
+          if (!shouldRetry(res)) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+          lastError = new Error(data.error || data.message || `HTTP ${res.status}`);
+        } catch (err) {
+          lastError = err;
+          if (controller.signal.aborted) throw err;
+          const isTimeout = err?.message === 'timeout' || err?.name === 'AbortError';
+          if (!shouldRetry(res, err) && !isTimeout) throw err;
+        }
+        const backoff = 800 + Math.floor(Math.random() * 400);
+        await new Promise(r => setTimeout(r, backoff));
+        attempt++;
+      }
+      throw lastError || new Error('Error desconocido');
+    })();
+
+    inflightRequests.set(key, { promise: fetchPromise, controller });
+    try {
+      const result = await fetchPromise;
+      return result;
+    } finally {
+      inflightRequests.delete(key);
+    }
+
+    function triggerRevalidate() {
+      if (inflightRequests.has(key)) return inflightRequests.get(key).promise;
+      const revalidateController = new AbortController();
+      const revalidatePromise = (async () => {
+        try {
+          const res = await fetchWithTimeout(fullUrl, { timeoutMs }, timeoutMs, revalidateController.signal);
+          const text = await res.text();
+          const data = parseResponseText(text);
+          if (data.status === 'ok') {
+            writeCache(key, { data, meta: { url: fullUrl, status: res.status, body: text.slice(0,200), action } });
+            logStatus('Cache actualizada en segundo plano','muted');
+            return { data, meta: { url: fullUrl, status: res.status, body: text.slice(0,200), action } };
+          }
+        } catch (err) {
+          logStatus('Revalidación fallida: ' + err, 'muted');
+        }
+        return null;
+      })();
+      inflightRequests.set(key, { promise: revalidatePromise, controller: revalidateController });
+      revalidatePromise.finally(() => inflightRequests.delete(key));
+      return revalidatePromise;
+    }
+  }
+
   function isUnknownAction(data) {
     const msg = (data && (data.error || data.message)) || '';
     return typeof msg === 'string' && msg.toLowerCase().includes('unknown action');
@@ -648,9 +900,10 @@
   async function fetchSwimmersCompat(baseUrl, coachId, sheetId) {
     const params = { coach_id: coachId };
     if (sheetId) params.spreadsheet_id = sheetId;
+    const timeoutMs = getTimeoutMs();
 
     const firstUrl = buildUrl(baseUrl, 'get_swimmers', params);
-    let res = await fetchWithTimeout(firstUrl, {}, 12000);
+    let res = await fetchWithTimeout(firstUrl, {}, timeoutMs);
     let text = await res.text();
     let data = parseJsonSafe(text) || {};
     logStatus('GET get_swimmers', 'muted', `${res.status}`);
@@ -661,7 +914,7 @@
 
     const fallbackUrl = buildUrl(baseUrl, 'list_swimmers', params);
     logStatus('Compatibilidad: fallback a list_swimmers','muted');
-    res = await fetchWithTimeout(fallbackUrl, {}, 12000);
+    res = await fetchWithTimeout(fallbackUrl, {}, timeoutMs);
     text = await res.text();
     data = parseJsonSafe(text) || {};
     if (data.status === 'ok') {
@@ -671,18 +924,7 @@
   }
 
   async function fetchSwimmerMarksWithContext(baseUrl, coachId, swimmerId, sheetId, signal) {
-    const params = { coach_id: coachId, swimmer_id: swimmerId };
-    if (sheetId) params.spreadsheet_id = sheetId;
-
-    const fullUrl = buildUrl(baseUrl, 'get_swimmer_marks_with_context', params);
-    const res = await fetchWithTimeout(fullUrl, {}, 12000, signal);
-    const text = await res.text();
-    const data = parseJsonSafe(text) || {};
-    const meta = { url: fullUrl, status: res.status, body: text.slice(0,200), action: 'get_swimmer_marks_with_context' };
-
-    if (data.status === 'ok') return { data, meta };
-
-    throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    return loadSwimmerContext(baseUrl, coachId, swimmerId, sheetId, signal, { timeoutMs: getTimeoutMs() });
   }
 
   function ensureCriticalElements() {
@@ -809,6 +1051,12 @@
 
   async function cargarInforme(swimmerId) {
     if (state.isLoadingSwimmers) { logStatus('Informe ignorado: carga de nadadores en curso','muted'); return; }
+    const coachIdCheck = $('coach_id')?.value?.trim();
+    const requestKeyCheck = `${coachIdCheck || ''}::${swimmerId || ''}`;
+    if (state.isLoadingReport && currentLoadingKey === requestKeyCheck) {
+      logStatus('Solicitud de informe ignorada: ya hay una en curso','muted');
+      return;
+    }
     if (currentReportAbortController) {
       currentReportAbortController.abort('replaced');
     }
@@ -830,45 +1078,82 @@
       logStatus('No se puede generar informe: faltan datos','error');
       return;
     }
-
+    const requestKey = `${coachId}::${swimmerId}`;
+    startLoadingUI(requestKey, 'Cargando marcas...');
     setMsg('msgReport','Generando informe...','msg');
     setLoadingReport(true);
     logStatus('Solicitando informe del nadador...','muted');
 
     try {
-      const { data, meta } = await fetchSwimmerMarksWithContext(url, coachId, swimmerId, sheetId, controller.signal);
-      const swimmer = data.swimmer || null;
-      const marks = data.marks || [];
-      const eventos = buildProjectionReport(swimmer, marks);
-      currentSwimmerMeta = swimmer;
-      logStatus('Informe armado localmente desde marks','muted', state.debug ? `${meta?.status || ''} ${meta?.url || ''}` : undefined);
-
-      currentEventos = eventos;
-
-      if (eventos.length === 0) {
-        setMsg('msgReport','No hay eventos registrados para este nadador.','msg');
-        logStatus('Informe sin eventos','muted');
-        return;
+      const { data, meta, fromCache, revalidatePromise } = await fetchSwimmerMarksWithContext(url, coachId, swimmerId, sheetId, controller.signal);
+      aplicarContextoInforme(data, meta, { fromCache });
+      if (fromCache && revalidatePromise) {
+        revalidatePromise.then(res => {
+          if (res && res.data && currentReportAbortController === controller) {
+            logStatus('Revalidación lista, refrescando informe','muted');
+            aplicarContextoInforme(res.data, res.meta, { fromCache: false, silent: true });
+          }
+        });
       }
-
-      poblarFiltroEstilo(eventos);
-      renderTabla();
-      renderResumen();
-
-      setMsg('msgReport','', 'msg');
-      logStatus('Informe generado.','ok', state.debug ? `${meta?.status || ''} :: ${meta?.url || ''} :: ${(meta?.body || '').slice(0,200)}` : undefined);
-
     } catch (err) {
       if (controller.signal.aborted) {
         logStatus('Informe cancelado: se inició una nueva solicitud','muted');
+        setMsg('msgReport','Carga cancelada.','msg');
         return;
       }
-      setMsg('msgReport','Error al generar informe: ' + err,'msg error');
+      const msg = (err?.message === 'timeout') ? `Tiempo de espera agotado (${formatMs(getTimeoutMs())}).` : ('Error al generar informe: ' + err);
+      setMsg('msgReport', msg,'msg error');
+      updateLoadingStatus('Error', '');
       logStatus('Error generando informe: ' + err,'error');
     } finally {
       if (currentReportAbortController === controller) currentReportAbortController = null;
       setLoadingReport(false);
+      stopLoadingUI();
     }
+  }
+
+  function aplicarContextoInforme(data, meta, opts = {}) {
+    const swimmer = data?.swimmer || null;
+    const marks = data?.marks || [];
+    const eventos = buildProjectionReport(swimmer, marks);
+    currentSwimmerMeta = swimmer;
+    logStatus('Informe armado localmente desde marks','muted', state.debug ? `${meta?.status || ''} ${meta?.url || ''}` : undefined);
+    currentEventos = eventos;
+
+    if (opts.fromCache) {
+      updateLoadingStatus('Mostrando datos en cache', 'Actualizando en segundo plano...');
+    }
+
+    if (eventos.length === 0) {
+      setMsg('msgReport','No hay eventos registrados para este nadador.','msg');
+      logStatus('Informe sin eventos','muted');
+      return;
+    }
+
+    poblarFiltroEstilo(eventos);
+    renderTabla();
+    renderResumen();
+
+    setMsg('msgReport','', 'msg');
+    logStatus(opts.fromCache ? 'Informe desde cache listo.' : 'Informe generado.','ok', state.debug ? `${meta?.status || ''} :: ${meta?.url || ''} :: ${(meta?.body || '').slice(0,200)}` : undefined);
+  }
+
+  function cancelarCargaManual() {
+    if (currentReportAbortController) {
+      currentReportAbortController.abort('manual');
+      logStatus('Carga cancelada por el usuario','muted');
+      setMsg('msgReport','Carga cancelada.','msg');
+      stopLoadingUI();
+      setLoadingReport(false);
+    }
+  }
+
+  function reintentarCargaManual() {
+    if (!state.selectedSwimmerId) {
+      setMsg('msgReport','Seleccioná un nadador para reintentar.','msg error');
+      return;
+    }
+    cargarInforme(state.selectedSwimmerId);
   }
 
   function poblarFiltroEstilo(eventos) {
@@ -1212,7 +1497,7 @@
     logStatus('Probando conexión...','muted');
     try {
       const fullUrl = buildUrl(url, 'status');
-      const res = await fetchWithTimeout(fullUrl, {}, 12000);
+      const res = await fetchWithTimeout(fullUrl, {}, getTimeoutMs());
       const text = await res.text();
       const data = parseJsonSafe(text) || text;
       logStatus('Conexión OK','ok', state.debug ? `${res.status} ${fullUrl} ${String(text).slice(0,200)}` : undefined);
@@ -1228,13 +1513,18 @@
   // --- Init ---
   (function init() {
     restoreCfgToFields();
-    ['web_app_url','coach_id','spreadsheet_id','chkDebug'].forEach(id => {
+    ['web_app_url','coach_id','spreadsheet_id','chkDebug','timeout_ms'].forEach(id => {
       const el = $(id);
       if (el) el.addEventListener('change', () => { saveCfgFromFields(); state.debug = !!$('chkDebug')?.checked; });
       if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') el.addEventListener('blur', saveCfgFromFields);
     });
     const chk = $('chkAutoRefresh');
     if (chk) chk.addEventListener('change', () => { saveCfgFromFields(); startAutoRefresh(); });
+
+    const btnCancel = $('btnCancelLoad');
+    if (btnCancel) btnCancel.addEventListener('click', cancelarCargaManual);
+    const btnRetry = $('btnRetryLoad');
+    if (btnRetry) btnRetry.addEventListener('click', reintentarCargaManual);
 
     const cfg = getCfg();
     if (cfg.webAppUrl && cfg.coachId) {
