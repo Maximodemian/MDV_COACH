@@ -1101,15 +1101,17 @@
       setStatus(debugLogs.join('\n'), '');
     };
 
+    let snapshotPrevio;
+
     try {
       setLoading(true);
       setStatus('Guardando marca...', '');
-      const snapshotPrevio = await fetchMarksSnapshot(coach_id, swimmer_id);
+      snapshotPrevio = await fetchMarksSnapshot(coach_id, swimmer_id);
       logDebug('DEBUG guardarMarca: POST add_mark enviado');
       const res = await fetchWithTimeout(url, {
         method: 'POST',
         body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         cache: 'no-store'
       });
       const data = await res.json();
@@ -1133,56 +1135,51 @@
       logDebug('Resultado: NO persistido');
       if (msg) { msg.textContent = 'El servidor respondió OK pero no se verificó persistencia en la planilla (posible payload no interpretado).'; msg.className = 'msg error'; }
       logDebug('Payload enviado: ' + JSON.stringify(payload));
-
-      const fallbackPayload = {
-        action: 'add_mark',
-        coach_id,
-        swimmer_id,
-        fecha,
-        lugar_evento: lugar,
-        lugar,
-        evento: lugar,
-        curso,
-        tipo_toma,
-        tipo: tipo_toma,
-        estilo,
-        distancia_m: distancia,
-        carril,
-        tiempo_raw,
-        tiempo: tiempo_raw,
-        tiempo_str: tiempo_raw,
-        tiempo_s,
-        client_mark_id
-      };
-
-      logDebug('Reintentando con payload plano...');
-      const resRetry = await fetchWithTimeout(url, {
-        method: 'POST',
-        body: JSON.stringify(fallbackPayload),
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store'
-      });
-      const dataRetry = await resRetry.json();
-      logDebug('Respuesta servidor (retry): ' + JSON.stringify(dataRetry));
-      if (dataRetry.status !== 'ok') {
-        throw new Error(dataRetry.message || 'Reintento fallido.');
-      }
-
-      const verif2 = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: verif1.snapshot || snapshotPrevio, nuevaMarca: mark });
-      logDebug(`Verificación retry: prevCount=${verif2.prevCount} newCount=${verif2.newCount}`);
-
-      if (!verif2.ok) {
-        logDebug('Resultado: NO persistido tras retry');
-        if (msg) { msg.textContent = 'El servidor respondió OK pero no se verificó persistencia en la planilla (posible payload no interpretado).'; msg.className = 'msg error'; }
-        return;
-      }
-
-      logDebug('Resultado: persistido tras retry');
-      if (msg) { msg.textContent = 'Marca guardada correctamente.'; msg.className = 'msg ok'; }
-      if ($('tiempo_raw')) $('tiempo_raw').value = '';
-      setStatus('Marca guardada y verificada tras reintento.', 'ok');
-      await cargarMisMarcas();
     } catch (err) {
+      const errText = String(err || '');
+      if (errText.includes('Failed to fetch')) {
+        try {
+          logDebug('POST falló (Failed to fetch). Reintentando con GET compacto...');
+          const urlObj = new URL(url);
+          const params = {
+            action: 'add_mark',
+            coach_id,
+            swimmer_id,
+            fecha,
+            estilo,
+            distancia_m: distancia,
+            curso,
+            tipo_toma,
+            tiempo_raw,
+            carril,
+            lugar_evento: lugar
+          };
+          Object.entries(params).forEach(([k, v]) => {
+            if (v != null && v !== '') urlObj.searchParams.set(k, v);
+          });
+          const resGet = await fetchWithTimeout(urlObj.toString(), { method: 'GET', cache: 'no-store' });
+          const dataGet = await resGet.json();
+          logDebug('Respuesta servidor (GET fallback): ' + JSON.stringify(dataGet));
+          if (dataGet.status === 'ok') {
+            const verifFallback = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: snapshotPrevio, nuevaMarca: mark });
+            logDebug(`Verificación GET: prevCount=${verifFallback.prevCount} newCount=${verifFallback.newCount}`);
+            if (verifFallback.ok) {
+              if (msg) { msg.textContent = 'Marca guardada correctamente.'; msg.className = 'msg ok'; }
+              if ($('tiempo_raw')) $('tiempo_raw').value = '';
+              setStatus('Marca guardada y verificada.', 'ok');
+              await cargarMisMarcas();
+              return;
+            }
+          }
+          throw new Error((dataGet && dataGet.message) || 'No se pudo guardar con GET.');
+        } catch (fallbackErr) {
+          if (msg) { msg.textContent = 'Error: ' + fallbackErr; msg.className = 'msg error'; }
+          const extra = debugLogs.length ? `\n${debugLogs.join('\n')}` : '';
+          setStatus('Error al guardar marca: ' + fallbackErr + extra, 'error');
+          return;
+        }
+      }
+
       if (msg) { msg.textContent = 'Error: ' + err; msg.className = 'msg error'; }
       const extra = debugLogs.length ? `\n${debugLogs.join('\n')}` : '';
       setStatus('Error al guardar marca: ' + err + extra, 'error');
