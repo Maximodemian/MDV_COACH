@@ -163,6 +163,35 @@
       height: 10px;
       border-radius: 3px;
     }
+    .inline-checkbox input:disabled + span {
+      color: #9ca3af;
+      cursor: not-allowed;
+    }
+    .icon-btn.disabled,
+    .icon-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .toast {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      background: #111827;
+      color: white;
+      padding: 0.6rem 0.8rem;
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+      font-size: 0.82rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      transform: translateY(10px);
+      z-index: 9999;
+    }
+    .toast.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
 
     /* --- Estado de carga prolongada (heredado del dashboard del coach) --- */
     .loading-panel {
@@ -715,6 +744,8 @@
     </div>
   </div>
 
+  <div id="toast" class="toast" aria-live="polite"></div>
+
 </main>
 
 <script>
@@ -732,7 +763,13 @@
     currentSwimmer: null,
     editingMarkId: null,
     editingMark: null,
-    pendingDeleteId: null
+    pendingDeleteId: null,
+    permissions: {
+      allow_marks_edit: undefined,
+      allow_marks_delete: undefined,
+      allow_marks_hard_delete: undefined
+    },
+    editModeEnabled: false
   };
 
   const LONG_WAIT_HINT_MS = 12000;
@@ -753,6 +790,17 @@
     const body = $('infoBody');
     if (!body) return;
     body.style.display = body.style.display === 'block' ? 'none' : 'block';
+  }
+
+  function showToast(message = '') {
+    const toast = $('toast');
+    if (!toast || !message) return;
+    toast.textContent = message;
+    toast.classList.add('visible');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => {
+      toast.classList.remove('visible');
+    }, 2200);
   }
 
   function setStatus(text, type = '') {
@@ -969,12 +1017,66 @@
 
   function canEditMarks() {
     const toggle = $('allowEditMarksToggle');
-    const allowByToggle = toggle ? toggle.checked : true;
+    const allowByToggle = toggle ? toggle.checked : state.editModeEnabled;
     const allowByConfig = getConfigValue('allow_swimmer_mark_edit');
     const coachGate = getConfigValue('allow_swimmer_mark_edit_from_coach');
     const coachAllows = coachGate !== false; // quedará listo para que el coach lo anule
     const configAllows = allowByConfig !== false; // por defecto habilitado hasta que el coach lo limite
-    return allowByToggle && coachAllows && configAllows;
+    const permissionAllows = !!state.permissions.allow_marks_edit;
+    return allowByToggle && coachAllows && configAllows && permissionAllows && state.editModeEnabled;
+  }
+
+  function applyPermissionsToToggle() {
+    const toggle = $('allowEditMarksToggle');
+    if (!toggle) return;
+    const allowed = !!state.permissions.allow_marks_edit;
+    toggle.disabled = !allowed;
+    if (!allowed) {
+      state.editModeEnabled = false;
+      toggle.checked = false;
+    } else {
+      toggle.checked = state.editModeEnabled;
+    }
+    persistConfigFromInputs();
+  }
+
+  function updatePermissions(source = {}) {
+    const incoming = {
+      allow_marks_edit: source.allow_marks_edit,
+      allow_marks_delete: source.allow_marks_delete,
+      allow_marks_hard_delete: source.allow_marks_hard_delete
+    };
+    const hasData = Object.values(incoming).some((v) => v !== undefined);
+    if (!hasData) return false;
+    state.permissions = {
+      ...state.permissions,
+      ...incoming
+    };
+    applyPermissionsToToggle();
+    aplicarFiltrosYRender();
+    return true;
+  }
+
+  function hasPermissionInfo(obj = {}) {
+    return obj.allow_marks_edit !== undefined
+      || obj.allow_marks_delete !== undefined
+      || obj.allow_marks_hard_delete !== undefined;
+  }
+
+  async function fetchSwimmerPermissions() {
+    const swimmer_id = $('swimmer_id')?.value?.trim();
+    if (!swimmer_id) return;
+    try {
+      const url = buildGetUrl('get_swimmer_permissions', { requireSwimmerId: true });
+      const res = await fetchWithTimeout(url, {}, 12000);
+      const data = await res.json();
+      const perms = data?.permissions || data;
+      if (hasPermissionInfo(perms)) {
+        updatePermissions(perms);
+      }
+    } catch (err) {
+      console.warn('No se pudieron cargar permisos del nadador', err);
+    }
   }
 
   function updateConfigFromResponse(data) {
@@ -1027,7 +1129,7 @@
     cfg.webapp_url = $('webapp_url')?.value?.trim() || cfg.webapp_url || '';
     cfg.coach_id = $('coach_id')?.value?.trim() || cfg.coach_id || '';
     cfg.swimmer_id = $('swimmer_id')?.value?.trim() || cfg.swimmer_id || '';
-    cfg.allow_swimmer_mark_edit = !!$('allowEditMarksToggle')?.checked;
+    cfg.allow_swimmer_mark_edit = !!state.editModeEnabled;
     saveConfig(cfg);
   }
 
@@ -1152,6 +1254,10 @@
       persistConfigFromInputs();
       setStatus('Perfil sincronizado y guardado localmente.', 'ok');
       $('msgPerfil') && ( $('msgPerfil').textContent = '' );
+      const hadPermissions = updatePermissions(swimmer || {});
+      if (!hadPermissions) {
+        await fetchSwimmerPermissions();
+      }
     } catch (err) {
       const friendly = formatErr(err);
       if (localProfile && Object.keys(localProfile).length) {
@@ -1200,6 +1306,14 @@
         saveProfile({ ...data.swimmer });
         persistConfigFromInputs();
         state.currentSwimmer = data.swimmer;
+        const hadPermissions = updatePermissions(data.swimmer || {});
+        if (!hadPermissions && data.permissions) {
+          updatePermissions(data.permissions);
+        }
+      }
+
+      if (!hasPermissionInfo(state.permissions)) {
+        await fetchSwimmerPermissions();
       }
 
       updateConfigFromResponse(data);
@@ -1647,12 +1761,14 @@
       m.season_year != null ? `<span class="chip-small">Año: ${m.season_year}</span>` : '',
       m.age_chip != null ? `<span class="chip-small">Edad: ${m.age_chip}</span>` : ''
     ].filter(Boolean).join(' ');
-    const editButtons = canEditMarks() && (m.mark_id || m.client_mark_id) ? `
+    const actionsAvailable = state.editModeEnabled && state.permissions.allow_marks_edit && !m.deleted_at && (m.mark_id || m.client_mark_id);
+    const deleteEnabled = !!state.permissions.allow_marks_delete;
+    const editButtons = actionsAvailable ? `
       <div class="mark-actions">
-        <button type="button" class="icon-btn" onclick="abrirModalEdicion('${m.mark_id || m.client_mark_id}')" aria-label="Editar marca">
+        <button type="button" class="icon-btn" onclick="showToast('Función disponible próximamente')" aria-label="Editar marca">
           ✏️ <span>Editar</span>
         </button>
-        <button type="button" class="icon-btn danger" onclick="abrirModalBorrado('${m.mark_id || m.client_mark_id}')" aria-label="Eliminar marca">
+        <button type="button" class="icon-btn danger ${deleteEnabled ? '' : 'disabled'}" ${deleteEnabled ? '' : 'disabled'} onclick="${deleteEnabled ? "showToast('Función disponible próximamente')" : ''}" aria-label="Eliminar marca">
           🗑️ <span>Eliminar</span>
         </button>
       </div>` : '';
@@ -2121,7 +2237,8 @@
 
     const allowEditToggle = $('allowEditMarksToggle');
     if (allowEditToggle) {
-      allowEditToggle.checked = cfg.allow_swimmer_mark_edit !== false;
+      state.editModeEnabled = cfg.allow_swimmer_mark_edit === true;
+      allowEditToggle.checked = state.editModeEnabled;
     }
 
     const profile = loadProfileFromStorage();
@@ -2153,6 +2270,8 @@
     const allowEditToggle = $('allowEditMarksToggle');
     if (allowEditToggle) {
       allowEditToggle.addEventListener('change', () => {
+        state.editModeEnabled = allowEditToggle.checked && !!state.permissions.allow_marks_edit;
+        allowEditToggle.checked = state.editModeEnabled;
         persistConfigFromInputs();
         aplicarFiltrosYRender();
       });
