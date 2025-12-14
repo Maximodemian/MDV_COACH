@@ -462,8 +462,11 @@
   const state = {
     isLoading: false,
     autoInterval: null,
-    currentRequest: null
+    currentRequest: null,
+    lastConfig: {}
   };
+
+  const standardsCache = {};
 
   function $(...ids) {
     for (const id of ids) {
@@ -583,6 +586,27 @@
 
   function saveConfig(cfg) {
     localStorage.setItem(STORAGE_KEYS.config, JSON.stringify(cfg || {}));
+  }
+
+  function getMergedConfig() {
+    return { ...(state.lastConfig || {}), ...(loadConfig() || {}) };
+  }
+
+  function getConfigValue(...keys) {
+    const cfg = getMergedConfig();
+    for (const key of keys) {
+      if (cfg && cfg[key] != null) return cfg[key];
+    }
+    return null;
+  }
+
+  function updateConfigFromResponse(data) {
+    const cfgCandidate = data?.config || data?.CONFIG || data?.config_general || data?.CONFIG_GENERAL || data?.configuracion;
+    if (cfgCandidate && typeof cfgCandidate === 'object') {
+      state.lastConfig = { ...(state.lastConfig || {}), ...cfgCandidate };
+      const merged = getMergedConfig();
+      saveConfig(merged);
+    }
   }
 
   function loadProfileFromStorage() {
@@ -731,6 +755,7 @@
           const url = buildGetUrl('get_swimmer_marks_with_context');
           const res = await fetchWithTimeout(url, {}, 25000);
           const data = await res.json();
+          updateConfigFromResponse(data);
           if (data.status !== 'ok' || !data.swimmer) {
             throw new Error(data.message || 'No se recibió perfil.');
           }
@@ -796,7 +821,9 @@
         persistConfigFromInputs();
       }
 
-      const marks = (data.marks || []).map(normalizarMarca);
+      updateConfigFromResponse(data);
+
+      const marks = await Promise.all((data.marks || []).map(normalizarMarca));
       if (!marks.length) {
         if (msg) { msg.textContent = 'Todavía no hay marcas registradas.'; msg.className = 'msg'; }
         setStatus('Listo.', 'ok');
@@ -848,6 +875,95 @@
     }
 
     return null;
+  }
+
+  function formatSeconds(totalSeconds) {
+    const s = parseTiempo(totalSeconds);
+    if (s == null || !isFinite(s)) return '';
+    const minutes = Math.floor(s / 60);
+    const seconds = (s % 60).toFixed(2).padStart(5, '0');
+    if (minutes <= 0) return seconds;
+    return `${minutes}:${seconds}`;
+  }
+
+  function normalizeStyle(estilo) {
+    if (!estilo) return '';
+    const map = {
+      libre: 'Freestyle',
+      freestyle: 'Freestyle',
+      mariposa: 'Butterfly',
+      butterfly: 'Butterfly',
+      pecho: 'Breaststroke',
+      breaststroke: 'Breaststroke',
+      espalda: 'Backstroke',
+      backstroke: 'Backstroke',
+      combinados: 'IM',
+      combinado: 'IM',
+      medley: 'IM',
+      im: 'IM'
+    };
+    const key = String(estilo || '').trim().toLowerCase();
+    return map[key] || estilo;
+  }
+
+  function getConversionFactor() {
+    const specific = parseFloat(getConfigValue('factor_conversion_SCM_a_LCM'));
+    if (specific && isFinite(specific)) return specific;
+    const generic = parseFloat(getConfigValue('factor_conversion'));
+    if (generic && isFinite(generic)) return generic;
+    return 1.02;
+  }
+
+  function normalizeMark(mark) {
+    const m = { ...mark };
+    const poolValues = ['LCM', 'SCM', 'SCY'];
+    const normalizeCourse = (v) => {
+      const upper = (v || '').toUpperCase();
+      return poolValues.includes(upper) ? upper : null;
+    };
+
+    const detectedCourse = normalizeCourse(m.pool_course) || normalizeCourse(m.curso) || normalizeCourse(m.tipo_toma) || normalizeCourse(m.tipo);
+    let captureType = m.capture_type || m.tipo || m.tipo_toma || m.curso || '';
+    if (normalizeCourse(captureType)) {
+      const alt = m.tipo || m.tipo_toma || m.capture_type || '';
+      if (!normalizeCourse(alt)) captureType = alt;
+      else captureType = '';
+    }
+
+    m.pool_course = detectedCourse || 'LCM';
+    m.capture_type = captureType || 'Competencia';
+    m.curso = m.pool_course;
+    m.tipo_toma = m.capture_type;
+
+    const distancia = Number(m.distancia_m ?? m.distancia);
+    if (!isNaN(distancia)) m.distancia_m = distancia;
+
+    m.estilo = normalizeStyle(m.estilo);
+
+    const parsedTiempo = parseTiempoEnSegundos(m.tiempo_s ?? m.tiempo_raw ?? m.tiempo ?? m.tiempo_str);
+    if (parsedTiempo != null) {
+      m.tiempo_s = parsedTiempo;
+      if (!m.tiempo_raw) m.tiempo_raw = formatSeconds(parsedTiempo) || String(parsedTiempo);
+      if (!m.tiempo_str) m.tiempo_str = formatSeconds(parsedTiempo) || m.tiempo_raw;
+    }
+
+    const factor = getConversionFactor();
+    const curso = (m.pool_course || '').toUpperCase();
+    if (parsedTiempo != null) {
+      if (curso === 'SCM') {
+        m.equiv_lcm_s = parsedTiempo * factor;
+        m.equiv_lcm_str = formatSeconds(m.equiv_lcm_s);
+        m.comparacion_curso = 'LCM';
+        m.origen_tiempo = 'SCM (conv→LCM)';
+      } else {
+        m.equiv_lcm_s = parsedTiempo;
+        m.equiv_lcm_str = formatSeconds(parsedTiempo);
+        m.comparacion_curso = curso || 'LCM';
+        m.origen_tiempo = curso || 'LCM';
+      }
+    }
+
+    return m;
   }
 
   function buildMarkKey(m) {
@@ -912,11 +1028,37 @@
     return { ok: false, prevCount, newCount: lastSnapshot?.marks?.length || prevCount, snapshot: lastSnapshot };
   }
 
-  function normalizarMarca(mark) {
-    const m = { ...mark };
+  async function normalizarMarca(mark) {
+    let m = normalizeMark(mark);
+    m.cadda = m.cadda || {};
+    m.usa = m.usa || {};
+
+    const hydrateStandards = (stds = {}) => {
+      const caddaTime = parseTiempoEnSegundos(stds?.cadda?.tiempo_s ?? stds?.cadda?.tiempo ?? stds?.cadda);
+      if (caddaTime != null) {
+        m.cadda.tiempo_s = caddaTime;
+      }
+
+      const usaA = parseTiempoEnSegundos(stds?.usa?.A_s ?? stds?.usa?.A ?? stds?.A ?? stds?.usa_A_s);
+      const usaAA = parseTiempoEnSegundos(stds?.usa?.AA_s ?? stds?.usa?.AA ?? stds?.AA ?? stds?.usa_AA_s);
+      if (usaA != null) {
+        m.usa.A_s = usaA;
+      }
+      if (usaAA != null) {
+        m.usa.AA_s = usaAA;
+      }
+    };
+
+    const needsCadda = m.cadda.tiempo_s == null;
+    const needsUsa = m.usa.A_s == null && m.usa.AA_s == null;
+    if (needsCadda && needsUsa) {
+      const fallback = await fetchStandardsFromGlobal(m);
+      if (fallback) hydrateStandards(fallback);
+    }
+
     const base = calcularBaseTiempo(m);
 
-    if (m.cadda && m.cadda.tiempo_s != null) {
+    if (m.cadda.tiempo_s != null) {
       if (m.cadda.brecha_s == null && base != null) {
         m.cadda.brecha_s = base - m.cadda.tiempo_s;
       }
@@ -940,11 +1082,11 @@
 
   function calcularBaseTiempo(m) {
     const equiv = parseTiempo(m.equiv_lcm_s);
-    const tiempo = parseTiempo(m.tiempo_s);
+    const tiempo = parseTiempoEnSegundos(m.tiempo_s ?? m.tiempo_raw ?? m.tiempo_str);
     if (equiv != null) return equiv;
     if (tiempo == null) return null;
-    if ((m.curso || '').toUpperCase() === 'SCM' && (m.comparacion_curso || '').toUpperCase() === 'LCM') {
-      return tiempo * 1.02;
+    if ((m.pool_course || m.curso || '').toUpperCase() === 'SCM') {
+      return tiempo * getConversionFactor();
     }
     return tiempo;
   }
@@ -958,6 +1100,42 @@
     return '—';
   }
 
+  async function fetchStandardsFromGlobal(m) {
+    const baseUrl = getConfigValue('standards_webapp_url', 'standards_url', 'standardsWebAppUrl');
+    if (!baseUrl) return null;
+
+    const estilo = m.estilo;
+    const distancia = m.distancia_m || m.distancia;
+    const edad = calcularEdad($('fecha_nac')?.value);
+    const genero = $('genero')?.value || m.genero;
+    const params = new URLSearchParams({ estilo, distancia_m: distancia, curso: 'LCM' });
+    if (edad != null) params.append('edad', edad);
+    if (genero) params.append('genero', genero);
+
+    const cacheKey = `${baseUrl}|${params.toString()}`;
+    const cached = standardsCache[cacheKey];
+    if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+      return cached.data;
+    }
+
+    const actions = ['get_standards', 'get_event_standards', 'get_standards_for_event'];
+    for (const action of actions) {
+      try {
+        const url = `${baseUrl}?action=${action}&${params.toString()}`;
+        const res = await fetchWithTimeout(url, {}, 12000);
+        const data = await res.json();
+        if (data && (data.status === 'ok' || data.ok === true)) {
+          const standards = data.standards || data.standard || data.data || data.refs || data;
+          standardsCache[cacheKey] = { timestamp: Date.now(), data: standards };
+          return standards;
+        }
+      } catch (err) {
+        console.warn('Fallback standards error', action, err);
+      }
+    }
+    return null;
+  }
+
   function renderMark(m, list) {
     if (!list) return;
     const li = document.createElement('li');
@@ -965,9 +1143,15 @@
 
     const prueba = m.prueba || `${m.estilo} ${m.distancia_m}m`;
     const tiempo = m.tiempo_str || m.tiempo_raw || '';
-    const cursoLabel = cursoToLabel(m.curso);
+    const cursoLabel = m.origen_tiempo || (m.pool_course === 'SCM' ? 'SCM (conv→LCM)' : cursoToLabel(m.pool_course || m.curso));
     const badge = nivelBadge(m.nivel);
-    const textoProgreso = textoMotivacional(m);
+    const hasReferences = Boolean((m.cadda && m.cadda.tiempo_s != null) || (m.usa && (m.usa.A_s != null || m.usa.AA_s != null)));
+    const textoProgreso = hasReferences ? textoMotivacional(m) : 'Sin referencias cargadas para esta prueba';
+    const chips = brechaChips(m) || (!hasReferences ? '<span class="chip-small">Sin referencias cargadas para esta prueba</span>' : '');
+    const captura = m.capture_type || m.tipo_toma || '';
+    const equivLine = ((m.pool_course || m.curso || '').toUpperCase() === 'SCM' && m.equiv_lcm_str)
+      ? `Equivalente LCM: ${m.equiv_lcm_str}`
+      : '';
 
     li.innerHTML = `
       <div class="mark-header">
@@ -980,12 +1164,13 @@
         </div>
       </div>
       <div class="mark-sub">
-        ${formatearFecha(m.fecha)} · ${m.tipo_toma || ''} · ${m.lugar_evento || ''}
+        ${formatearFecha(m.fecha)} · ${captura} · ${m.lugar_evento || ''}
       </div>
       <div class="chips-row">
         ${badge}
-        ${brechaChips(m)}
+        ${chips}
       </div>
+      ${equivLine ? `<div class="mark-sub">${equivLine}</div>` : ''}
       <div class="mark-footer">
         ${textoProgreso}
       </div>
@@ -1099,6 +1284,8 @@
       client_mark_id
     };
 
+    const markNormalized = normalizeMark({ ...mark });
+
     const payload = {
       action: 'add_mark',
       coach_id,
@@ -1162,7 +1349,7 @@
         throw new Error(message);
       }
 
-      const verif1 = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: snapshotPrevio, nuevaMarca: mark });
+      const verif1 = await verificarPersistenciaMarca({ coach_id, swimmer_id, prevSnapshot: snapshotPrevio, nuevaMarca: markNormalized });
       logDebug(`Verificación: prevCount=${verif1.prevCount} newCount=${verif1.newCount}`);
 
       if (verif1.ok) {
@@ -1275,6 +1462,7 @@
 
   function initFromStorage() {
     const cfg = loadConfig();
+    state.lastConfig = { ...(cfg || {}) };
     const legacyUrl = localStorage.getItem('mdv_webapp_url');
     const url = cfg.webapp_url || legacyUrl || '';
     const webappInput = $('webapp_url');
