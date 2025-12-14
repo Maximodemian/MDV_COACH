@@ -335,6 +335,20 @@
     .export-row button.secondary {
       background: #6b7280;
     }
+
+    .permissions-row {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      margin: 0.25rem 0 0.5rem 0;
+      padding: 0.6rem 0.75rem;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+    }
+    .permissions-row label.inline { margin: 0; font-weight: 600; color: #1f2937; }
+    .permissions-row small { display: block; color: #6b7280; font-weight: 400; margin-top: 0.15rem; }
   
     /* --- Mejoras UI v4 --- */
     .last-updated{font-size:0.75rem;color:#6b7280;margin-top:0.2rem;}
@@ -442,6 +456,19 @@
       <div class="header-row">
         <h2><span class="dot"></span> Informe de proyección</h2>
         <div class="meta" id="metaSwimmer"></div>
+      </div>
+      <div class="permissions-row" id="permissionsRow" style="display:none;">
+        <label class="inline" for="chkAllowEdit">
+          <input type="checkbox" id="chkAllowEdit" style="width:auto;">
+          Permitir al nadador editar sus marcas
+          <small>Se guarda en la fila del nadador</small>
+        </label>
+        <label class="inline" for="chkAllowDelete">
+          <input type="checkbox" id="chkAllowDelete" style="width:auto;">
+          Permitir al nadador borrar sus marcas
+          <small>Se guarda en la fila del nadador</small>
+        </label>
+        <div id="msgPermisos" class="msg" style="margin-top:0; flex:1;"></div>
       </div>
       <div class="legend">
         <span>
@@ -569,7 +596,9 @@
     selectedSwimmerId: null,
     debug: false,
     swimmerIndex: new Map(),
-    currentMarks: []
+    currentMarks: [],
+    swimmerPermissions: new Map(),
+    isLoadingPermissions: false
   };
 
   const LS_KEY = 'MDV_COACH_DASH_FIX_V1';
@@ -579,6 +608,8 @@
   const CACHE_TTL_MS = 3 * 60 * 1000;
   const CACHE_PREFIX = 'ctx_cache_v1::';
   const inflightRequests = new Map();
+  const DEFAULT_PERMISSIONS = { allow_marks_edit: false, allow_marks_delete: false };
+  let suppressPermissionChange = false;
 
   function logStatus(msg, type = 'info', meta) {
     const panel = $('statusLog');
@@ -836,6 +867,54 @@
     return map;
   }
 
+  function normalizePermissions(raw = {}) {
+    return {
+      allow_marks_edit: !!(raw.allow_marks_edit ?? raw.allowEdit ?? raw.permitir_edicion),
+      allow_marks_delete: !!(raw.allow_marks_delete ?? raw.allowDelete ?? raw.permitir_borrado)
+    };
+  }
+
+  function getCachedPermissions(swimmerId) {
+    return state.swimmerPermissions.get(swimmerId) || { ...DEFAULT_PERMISSIONS };
+  }
+
+  function setLoadingPermissions(flag) {
+    state.isLoadingPermissions = flag;
+    const row = $('permissionsRow');
+    if (row) row.style.opacity = flag ? '0.6' : '1';
+    ['chkAllowEdit','chkAllowDelete'].forEach(id => {
+      const el = $(id);
+      if (el) el.disabled = flag;
+    });
+  }
+
+  function showPermissionRow(flag) {
+    const row = $('permissionsRow');
+    if (!row) return;
+    row.style.display = flag ? 'flex' : 'none';
+  }
+
+  function applyPermissionsToUI(perms) {
+    suppressPermissionChange = true;
+    const { allow_marks_edit, allow_marks_delete } = perms || DEFAULT_PERMISSIONS;
+    if ($('chkAllowEdit')) $('chkAllowEdit').checked = !!allow_marks_edit;
+    if ($('chkAllowDelete')) $('chkAllowDelete').checked = !!allow_marks_delete;
+    suppressPermissionChange = false;
+  }
+
+  function getPermissionsFromUI() {
+    return {
+      allow_marks_edit: !!$('chkAllowEdit')?.checked,
+      allow_marks_delete: !!$('chkAllowDelete')?.checked
+    };
+  }
+
+  function resetPermissionsUI() {
+    applyPermissionsToUI(DEFAULT_PERMISSIONS);
+    setMsg('msgPermisos','', 'msg');
+    showPermissionRow(false);
+  }
+
   function getActiveFilters() {
     const seasonVal = $('filtroSeason')?.value || 'todos';
     const ageVal = $('filtroEdad')?.value || 'todos';
@@ -885,6 +964,41 @@
     const data = parseJsonSafe(text);
     if (data) return data;
     return { status: 'error', error: 'Respuesta no es JSON válido', raw: text?.slice(0,200) };
+  }
+
+  async function getSwimmerPermissions(swimmerId) {
+    const baseUrl = $('web_app_url')?.value?.trim();
+    const coachId = $('coach_id')?.value?.trim();
+    const sheetId = $('spreadsheet_id')?.value?.trim();
+    if (!baseUrl || !coachId || !swimmerId) throw new Error('Faltan parámetros para leer permisos');
+    const params = { coach_id: coachId, swimmer_id: swimmerId };
+    if (sheetId) params.spreadsheet_id = sheetId;
+    const fullUrl = buildUrl(baseUrl, 'get_swimmer_permissions', params);
+    const timeoutMs = getTimeoutMs();
+    const res = await fetchWithTimeout(fullUrl, {}, timeoutMs);
+    const text = await res.text();
+    const data = parseResponseText(text);
+    if (data.status !== 'ok') throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    return normalizePermissions(data.permissions || data);
+  }
+
+  async function setSwimmerPermissions(swimmerId, patch = {}) {
+    const baseUrl = $('web_app_url')?.value?.trim();
+    const coachId = $('coach_id')?.value?.trim();
+    const sheetId = $('spreadsheet_id')?.value?.trim();
+    if (!baseUrl || !coachId || !swimmerId) throw new Error('Faltan parámetros para guardar permisos');
+    const params = { coach_id: coachId, swimmer_id: swimmerId };
+    ['allow_marks_edit','allow_marks_delete'].forEach(k => {
+      if (patch[k] !== undefined && patch[k] !== null) params[k] = !!patch[k];
+    });
+    if (sheetId) params.spreadsheet_id = sheetId;
+    const fullUrl = buildUrl(baseUrl, 'set_swimmer_permissions', params);
+    const timeoutMs = getTimeoutMs();
+    const res = await fetchWithTimeout(fullUrl, { method: 'POST' }, timeoutMs);
+    const text = await res.text();
+    const data = parseResponseText(text);
+    if (data.status !== 'ok') throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    return normalizePermissions(data.permissions || patch);
   }
 
   async function loadSwimmerContext(baseUrl, coachId, swimmerId, sheetId, externalSignal, opts = {}) {
@@ -1049,6 +1163,7 @@
       if (tableWrapper) tableWrapper.innerHTML = '';
       if (msgReport) msgReport.innerText = '';
       if (summaryRow) summaryRow.innerHTML = '';
+      resetPermissionsUI();
     }
 
     if (!url || !coachId) {
@@ -1103,6 +1218,7 @@
 
       if (selectedSwimmerObj) {
         setMetaSwimmer(selectedSwimmerObj);
+        await cargarPermisos(selectedSwimmerObj.swimmer_id);
         await cargarInforme(selectedSwimmerObj.swimmer_id);
       }
 
@@ -1129,6 +1245,49 @@
     `;
   }
 
+  async function cargarPermisos(swimmerId) {
+    const cached = getCachedPermissions(swimmerId);
+    applyPermissionsToUI(cached);
+    showPermissionRow(true);
+    setMsg('msgPermisos','Cargando permisos...', 'msg');
+    setLoadingPermissions(true);
+    try {
+      const perms = await getSwimmerPermissions(swimmerId);
+      state.swimmerPermissions.set(swimmerId, perms);
+      applyPermissionsToUI(perms);
+      setMsg('msgPermisos','Permisos cargados desde planilla.','msg');
+    } catch (err) {
+      setMsg('msgPermisos','No se pudieron leer los permisos: ' + err, 'msg error');
+      logStatus('Error cargando permisos: ' + err, 'error');
+      applyPermissionsToUI(cached);
+    } finally {
+      setLoadingPermissions(false);
+    }
+  }
+
+  async function onPermissionToggleChanged() {
+    if (suppressPermissionChange) return;
+    const swimmerId = state.selectedSwimmerId;
+    if (!swimmerId) { setMsg('msgPermisos','Seleccioná un nadador primero.','msg error'); return; }
+    const previous = getCachedPermissions(swimmerId);
+    const desired = getPermissionsFromUI();
+    setLoadingPermissions(true);
+    setMsg('msgPermisos','Guardando permisos...', 'msg');
+    try {
+      const saved = await setSwimmerPermissions(swimmerId, desired);
+      state.swimmerPermissions.set(swimmerId, saved);
+      applyPermissionsToUI(saved);
+      setMsg('msgPermisos','Permisos actualizados.','msg ok');
+      logStatus('Permisos del nadador actualizados','ok');
+    } catch (err) {
+      applyPermissionsToUI(previous);
+      setMsg('msgPermisos','No se pudo actualizar: ' + err, 'msg error');
+      logStatus('Error guardando permisos: ' + err, 'error');
+    } finally {
+      setLoadingPermissions(false);
+    }
+  }
+
   async function seleccionarNadador(li, swimmer) {
     if (state.isLoadingSwimmers) { logStatus('Selección ignorada: carga de nadadores en curso','muted'); return; }
     limpiarSeleccionLista();
@@ -1136,6 +1295,7 @@
     state.selectedSwimmerId = swimmer.swimmer_id;
     saveCfgFromFields();
     setMetaSwimmer(swimmer);
+    await cargarPermisos(swimmer.swimmer_id);
     await cargarInforme(swimmer.swimmer_id);
   }
 
@@ -1650,6 +1810,10 @@
       const el = $(id);
       if (el) el.addEventListener('change', () => { saveCfgFromFields(); state.debug = !!$('chkDebug')?.checked; });
       if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') el.addEventListener('blur', saveCfgFromFields);
+    });
+    ['chkAllowEdit','chkAllowDelete'].forEach(id => {
+      const el = $(id);
+      if (el) el.addEventListener('change', onPermissionToggleChanged);
     });
     const chk = $('chkAutoRefresh');
     if (chk) chk.addEventListener('change', () => { saveCfgFromFields(); startAutoRefresh(); });
