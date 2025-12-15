@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>MDV Swim · Dashboard Entrenador v9</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin:0; padding:0; background:#f3f4f6; color:#111827; }
+    header { background:linear-gradient(90deg,#1e3a8a,#2563eb); color:white; padding:1rem 1.5rem; }
+    header h1 { margin:0; font-size:1.3rem; display:flex; gap:0.5rem; align-items:center; }
+    header h1 span.logo { width:26px; height:26px; border-radius:999px; background:rgba(255,255,255,0.18); display:inline-flex; align-items:center; justify-content:center; font-weight:700; }
+    main { max-width:1200px; margin:0 auto; padding:1rem; display:grid; grid-template-columns:300px 1fr; gap:1rem; }
+    @media(max-width:960px){ main { grid-template-columns:1fr; } }
+    .card { background:white; border-radius:12px; box-shadow:0 4px 12px rgba(15,23,42,0.12); padding:0.9rem 1rem 1rem; }
+    .card h2 { margin-top:0; font-size:1rem; border-bottom:1px solid #e5e7eb; padding-bottom:0.35rem; display:flex; gap:0.4rem; align-items:center; }
+    .dot { width:9px; height:9px; border-radius:999px; background:#2563eb; display:inline-flex; }
+    label { display:block; font-size:0.82rem; color:#374151; margin-top:0.45rem; }
+    input, select { width:100%; box-sizing:border-box; padding:0.35rem 0.45rem; border:1px solid #d1d5db; border-radius:6px; background:#f9fafb; font-size:0.85rem; }
+    input:focus, select:focus { outline:none; border-color:#2563eb; box-shadow:0 0 0 1px rgba(37,99,235,.2); background:white; }
+    button { border:none; border-radius:999px; padding:0.45rem 0.9rem; background:#2563eb; color:white; cursor:pointer; display:inline-flex; gap:0.35rem; align-items:center; font-size:0.85rem; }
+    button.secondary { background:#6b7280; }
+    button:disabled { opacity:0.6; cursor:not-allowed; }
+    .msg { font-size:0.8rem; min-height:1rem; margin-top:0.3rem; }
+    .msg.error { color:#b91c1c; }
+    .msg.ok { color:#15803d; }
+    .list { list-style:none; padding:0; margin:0.5rem 0 0; max-height:320px; overflow-y:auto; }
+    .list li { padding:0.35rem 0.45rem; border-bottom:1px dashed #e5e7eb; display:flex; justify-content:space-between; cursor:pointer; font-size:0.9rem; }
+    .list li.active { background:#dbeafe; }
+    .table-wrap { margin-top:0.5rem; border:1px solid #e5e7eb; border-radius:10px; overflow:auto; max-height:420px; }
+    table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+    th, td { border-bottom:1px solid #e5e7eb; padding:0.35rem 0.45rem; white-space:nowrap; text-align:center; }
+    th { background:#eff6ff; position:sticky; top:0; z-index:2; }
+    .summary { display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.4rem; font-size:0.82rem; }
+    .pill { background:#eef2ff; color:#1e3a8a; padding:0.18rem 0.65rem; border-radius:999px; }
+    .perm-row { display:flex; gap:0.7rem; align-items:center; flex-wrap:wrap; margin:0.35rem 0; padding:0.5rem 0.7rem; background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; }
+    .legend { font-size:0.78rem; color:#6b7280; display:flex; gap:0.5rem; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+<header>
+  <h1><span class="logo">MDV</span>Swim · Entrenador v9</h1>
+  <small>Permisos corregidos y generación de informe estable</small>
+</header>
+<main>
+  <section class="card">
+    <h2><span class="dot"></span> Conexión</h2>
+    <label>URL Web App (Apps Script)
+      <input id="webApp" type="url" placeholder="https://script.google.com/macros/s/XXXX/exec">
+    </label>
+    <label>Coach ID
+      <input id="coachId" type="text" placeholder="COACH_MDV_001">
+    </label>
+    <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-top:0.4rem;">
+      <button id="btnPing">🩺 Probar</button>
+      <button id="btnLoad">🔄 Cargar nadadores</button>
+      <button class="secondary" id="btnClear">🧹 Limpiar</button>
+    </div>
+    <div id="msgConn" class="msg"></div>
+
+    <h2><span class="dot"></span> Nadadores</h2>
+    <ul id="swimmerList" class="list"></ul>
+    <div class="msg" style="color:#6b7280; font-size:0.78rem;">Selecciona un nadador para ver el informe y los permisos.</div>
+  </section>
+
+  <section class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+      <h2 style="border:none; padding-bottom:0;"><span class="dot"></span> Informe</h2>
+      <div id="meta" style="font-size:0.8rem; color:#4b5563;"></div>
+    </div>
+    <div id="permRow" class="perm-row" style="display:none;">
+      <label><input type="checkbox" id="chkEdit"> Permitir edición de marcas</label>
+      <label><input type="checkbox" id="chkDelete"> Permitir borrado de marcas</label>
+      <button id="btnSavePerms" class="secondary">Guardar permisos</button>
+      <div id="msgPerms" class="msg" style="margin:0; flex:1;"></div>
+    </div>
+    <div class="legend">
+      <span>El informe incluye todas las marcas del nadador y respeta los permisos guardados en la planilla.</span>
+    </div>
+    <div id="msgReport" class="msg"></div>
+    <div class="summary" id="summary"></div>
+    <div class="table-wrap" id="tableWrap"></div>
+  </section>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  const LS_KEY = 'mdv_coach_v9';
+  const state = { swimmers: [], selected: null, loading: false, loadingReport:false };
+
+  function saveCfg() {
+    localStorage.setItem(LS_KEY, JSON.stringify({ webApp: $('webApp').value.trim(), coachId: $('coachId').value.trim(), selected: state.selected }));
+  }
+  function loadCfg() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+  }
+  function restoreCfg() {
+    const cfg = loadCfg();
+    if (cfg.webApp) $('webApp').value = cfg.webApp;
+    if (cfg.coachId) $('coachId').value = cfg.coachId;
+    state.selected = cfg.selected || null;
+  }
+
+  async function ping() {
+    const url = $('webApp').value.trim();
+    if (!url) { setMsg('msgConn','Falta URL','error'); return; }
+    setMsg('msgConn','Probando...');
+    try {
+      const res = await fetch(`${url}?action=ping`);
+      const data = await res.json();
+      if (data.status === 'ok') setMsg('msgConn','OK'); else throw new Error('Respuesta inválida');
+    } catch (err) {
+      setMsg('msgConn','Error: ' + err.message,'error');
+    }
+  }
+
+  function setMsg(id, text, cls='') {
+    const el = $(id); if (!el) return; el.textContent = text || ''; el.className = 'msg ' + (cls||'');
+  }
+
+  function renderSwimmers() {
+    const list = $('swimmerList');
+    list.innerHTML='';
+    state.swimmers.forEach(sw => {
+      const li = document.createElement('li');
+      li.textContent = sw.nombre || sw.swimmer_id;
+      li.dataset.id = sw.swimmer_id;
+      if (state.selected === sw.swimmer_id) li.classList.add('active');
+      li.addEventListener('click',()=> selectSwimmer(sw.swimmer_id));
+      list.appendChild(li);
+    });
+  }
+
+  async function loadSwimmers() {
+    const base = $('webApp').value.trim();
+    const coach = $('coachId').value.trim();
+    if (!base || !coach) { setMsg('msgConn','Falta URL o coach_id','error'); return; }
+    setMsg('msgConn','Cargando...');
+    saveCfg();
+    try {
+      const res = await fetch(`${base}?action=get_swimmers&coach_id=${encodeURIComponent(coach)}`);
+      const data = await res.json();
+      if (data.status !== 'ok') throw new Error(data.error || 'Error remoto');
+      state.swimmers = data.swimmers || [];
+      renderSwimmers();
+      setMsg('msgConn',`Recibidos ${state.swimmers.length} nadadores`,'ok');
+      if (state.selected) selectSwimmer(state.selected,true);
+    } catch (err) {
+      setMsg('msgConn','Error: ' + err.message,'error');
+    }
+  }
+
+  function renderTable(marks=[]) {
+    const wrap = $('tableWrap');
+    if (!marks.length) { wrap.innerHTML='<div class="msg">Sin marcas cargadas</div>'; return; }
+    const rows = marks.map(m => `<tr><td>${m.fecha || ''}</td><td>${m.estilo||''}</td><td>${m.distancia_m||''}</td><td>${m.curso||''}</td><td>${m.tiempo_str||''}</td><td>${m.tipo_toma||''}</td><td>${m.lugar_evento||''}</td></tr>`).join('');
+    wrap.innerHTML = `<table><thead><tr><th>Fecha</th><th>Estilo</th><th>Distancia</th><th>Curso</th><th>Tiempo</th><th>Tipo</th><th>Evento</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderSummary(summary={}, perms={}) {
+    const box = $('summary');
+    const pills = [];
+    if (summary.total_marks != null) pills.push(`<span class="pill">Marcas: ${summary.total_marks}</span>`);
+    if (summary.last_mark_at) pills.push(`<span class="pill">Última: ${summary.last_mark_at}</span>`);
+    pills.push(`<span class="pill">Editar: ${perms.allow_marks_edit? 'sí':'no'}</span>`);
+    pills.push(`<span class="pill">Borrar: ${perms.allow_marks_delete? 'sí':'no'}</span>`);
+    box.innerHTML = pills.join('');
+  }
+
+  async function selectSwimmer(swimmerId, silent=false) {
+    state.selected = swimmerId; saveCfg();
+    Array.from(document.querySelectorAll('#swimmerList li')).forEach(li=> li.classList.toggle('active', li.dataset.id===swimmerId));
+    if (!swimmerId) return;
+    const base = $('webApp').value.trim();
+    const coach = $('coachId').value.trim();
+    $('tableWrap').innerHTML=''; $('summary').innerHTML=''; setMsg('msgReport','Cargando...');
+    try {
+      const res = await fetch(`${base}?action=get_swimmer_marks_with_context&coach_id=${encodeURIComponent(coach)}&swimmer_id=${encodeURIComponent(swimmerId)}`);
+      const data = await res.json();
+      if (data.status !== 'ok') throw new Error(data.error || 'Error remoto');
+      setMsg('msgReport','Informe listo','ok');
+      $('meta').textContent = `${data.profile?.nombre || swimmerId}`;
+      const perms = data.permissions || { allow_marks_edit:false, allow_marks_delete:false };
+      $('permRow').style.display = 'flex';
+      $('chkEdit').checked = !!perms.allow_marks_edit;
+      $('chkDelete').checked = !!perms.allow_marks_delete;
+      renderSummary(data.summary || {}, perms);
+      renderTable(data.marks || []);
+    } catch (err) {
+      setMsg('msgReport','Error: ' + err.message,'error');
+    }
+  }
+
+  async function savePermissions() {
+    if (!state.selected) { setMsg('msgPerms','Selecciona un nadador','error'); return; }
+    const base = $('webApp').value.trim();
+    const coach = $('coachId').value.trim();
+    setMsg('msgPerms','Guardando...');
+    try {
+      const url = `${base}?action=set_swimmer_permissions&coach_id=${encodeURIComponent(coach)}&swimmer_id=${encodeURIComponent(state.selected)}&allow_marks_edit=${$('chkEdit').checked}&allow_marks_delete=${$('chkDelete').checked}`;
+      const res = await fetch(url, { method:'POST' });
+      const data = await res.json();
+      if (data.status !== 'ok') throw new Error(data.error || 'No se pudo guardar');
+      setMsg('msgPerms','Permisos guardados','ok');
+      const idx = state.swimmers.findIndex(s=>s.swimmer_id===state.selected);
+      if (idx>=0) { state.swimmers[idx].allow_marks_edit=$('chkEdit').checked; state.swimmers[idx].allow_marks_delete=$('chkDelete').checked; }
+      renderSummary({}, data.permissions || {});
+    } catch (err) {
+      setMsg('msgPerms','Error: ' + err.message,'error');
+    }
+  }
+
+  function clearAll() {
+    ['webApp','coachId'].forEach(id=> $(id).value='');
+    state.swimmers=[]; state.selected=null; renderSwimmers(); $('tableWrap').innerHTML=''; $('summary').innerHTML='';
+    setMsg('msgConn',''); setMsg('msgReport',''); setMsg('msgPerms','');
+    localStorage.removeItem(LS_KEY);
+  }
+
+  function init() {
+    restoreCfg();
+    $('btnPing').onclick = ping;
+    $('btnLoad').onclick = loadSwimmers;
+    $('btnClear').onclick = clearAll;
+    $('btnSavePerms').onclick = savePermissions;
+    if (state.selected) loadSwimmers();
+  }
+  document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
